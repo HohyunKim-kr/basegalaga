@@ -1,0 +1,19 @@
+{
+  "name": "base-galaga-miniapp",
+  "version": "1.0.0",
+  "description": "Galaga-style shooter game built with Base MiniApp SDK",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/generate-manifest.js && vite build",
+    "preview": "vite preview",
+    "generate-manifest": "node scripts/generate-manifest.js"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
+
