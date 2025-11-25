@@ -79,7 +79,10 @@ export function createModernButton(scene, x, y, width, height, color, text, call
   const canvas = scene.game.canvas;
   
   const getPos = (event) => {
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
+    if (!rect) return null;
+    
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     
@@ -87,9 +90,11 @@ export function createModernButton(scene, x, y, width, height, color, text, call
     if (event.touches && event.touches.length > 0) {
       clientX = event.touches[0].clientX;
       clientY = event.touches[0].clientY;
-    } else {
+    } else if (event.clientX !== undefined && event.clientY !== undefined) {
       clientX = event.clientX;
       clientY = event.clientY;
+    } else {
+      return null;
     }
     
     return {
@@ -99,37 +104,127 @@ export function createModernButton(scene, x, y, width, height, color, text, call
   };
   
   const isInside = (px, py) => {
+    if (px === null || py === null) return false;
     return px >= bounds.left && px <= bounds.right && py >= bounds.top && py <= bounds.bottom;
   };
   
   const onTouch = (event) => {
-    if (!event) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
+    if (!event || !canvas) return;
     
     const pos = getPos(event);
-    if (isInside(pos.x, pos.y)) {
+    if (pos && isInside(pos.x, pos.y)) {
+      // 버튼 클릭 확인 - 이벤트 전파 완전 차단
+      try {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        // 이벤트 버블링 완전 차단
+        if (event.cancelBubble !== undefined) {
+          event.cancelBubble = true;
+        }
+      } catch (e) {
+        // 이미 처리된 이벤트일 수 있음
+      }
+      
+      console.log('✅ Button clicked:', text, 'at', pos);
       button.setScale(0.95);
-      callback();
+      
+      // 콜백 실행 (비동기로 실행하여 이벤트 처리 완료 후 실행)
+      setTimeout(() => {
+        try {
+          callback();
+        } catch (error) {
+          console.error('Button callback error:', error);
+        }
+      }, 0);
+      
+      // 시각적 피드백 복원
       setTimeout(() => {
         if (button && button.setScale) {
           button.setScale(1);
         }
       }, 100);
+      
+      // 이벤트가 다른 핸들러로 전파되지 않도록 추가 차단
+      return false;
     }
   };
   
-  // capture: true로 설정하여 다른 이벤트보다 먼저 처리
-  canvas.addEventListener('touchstart', onTouch, { passive: false, capture: true });
-  canvas.addEventListener('mousedown', onTouch, { capture: true });
-  
-  button.cleanup = () => {
-    canvas.removeEventListener('touchstart', onTouch, { capture: true });
-    canvas.removeEventListener('mousedown', onTouch, { capture: true });
+  // 이벤트 리스너 등록 (높은 우선순위로 등록하여 TouchControlManager보다 먼저 실행)
+  const setupListeners = () => {
+    if (!canvas) {
+      console.warn('⚠️ Canvas not available for button:', text);
+      // 재시도
+      setTimeout(() => {
+        const retryCanvas = scene.game?.canvas;
+        if (retryCanvas) {
+          // document에도 등록하여 최우선 처리
+          if (typeof document !== 'undefined') {
+            document.addEventListener('touchstart', onTouch, { passive: false, capture: true });
+            document.addEventListener('mousedown', onTouch, { capture: true });
+          }
+          retryCanvas.addEventListener('touchstart', onTouch, { passive: false, capture: true });
+          retryCanvas.addEventListener('mousedown', onTouch, { capture: true });
+          console.log('✅ Button listeners added (retry) for:', text);
+        }
+      }, 200);
+      return;
+    }
+    
+    try {
+      // 기존 리스너 제거 (중복 방지)
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('touchstart', onTouch, { capture: true });
+        document.removeEventListener('mousedown', onTouch, { capture: true });
+      }
+      canvas.removeEventListener('touchstart', onTouch, { capture: true });
+      canvas.removeEventListener('mousedown', onTouch, { capture: true });
+      
+      // document 레벨에 먼저 등록 (최우선 처리)
+      if (typeof document !== 'undefined') {
+        document.addEventListener('touchstart', onTouch, { passive: false, capture: true });
+        document.addEventListener('mousedown', onTouch, { capture: true });
+      }
+      
+      // canvas에도 등록 (백업)
+      canvas.addEventListener('touchstart', onTouch, { passive: false, capture: true });
+      canvas.addEventListener('mousedown', onTouch, { capture: true });
+      console.log('✅ Button listeners added for:', text, 'bounds:', bounds);
+    } catch (error) {
+      console.error('❌ Error adding button listeners:', error);
+    }
   };
   
-  return { button, text: buttonText };
+  // 즉시 설정 시도
+  if (canvas) {
+    setupListeners();
+  } else {
+    // canvas가 아직 준비되지 않았으면 재시도
+    setTimeout(setupListeners, 50);
+  }
+  
+  const cleanup = () => {
+    try {
+      // document 레벨 리스너 제거
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('touchstart', onTouch, { capture: true });
+        document.removeEventListener('mousedown', onTouch, { capture: true });
+      }
+      // canvas 리스너 제거
+      if (canvas) {
+        canvas.removeEventListener('touchstart', onTouch, { capture: true });
+        canvas.removeEventListener('mousedown', onTouch, { capture: true });
+      }
+      console.log('✅ Button listeners removed for:', text);
+    } catch (error) {
+      console.warn('⚠️ Error removing button listeners:', error);
+    }
+  };
+  
+  button.cleanup = cleanup;
+  buttonText.cleanup = cleanup;
+  
+  return { button, text: buttonText, cleanup };
 }
 
 export function createModernPanel(scene, x, y, width, height, alpha = 0.85) {

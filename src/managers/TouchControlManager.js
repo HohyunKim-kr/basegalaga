@@ -322,6 +322,17 @@ export class TouchControlManager {
       return;
     }
     
+    // GameScene이 아니면 무시 (GameOver, MainMenu 등에서는 작동 안함)
+    if (!this.scene) {
+      return;
+    }
+    
+    // 씬 키 확인 (여러 방법으로 체크)
+    const sceneKey = this.scene.scene?.key || this.scene.sys?.settings?.key || this.scene.sys?.scene?.key;
+    if (sceneKey !== 'GameScene') {
+      return; // GameScene이 아니면 완전히 무시
+    }
+    
     // 아이템 선택 UI가 활성화되어 있으면 무시
     if (this.scene && this.scene.itemSelectionUI) {
       return;
@@ -361,6 +372,17 @@ export class TouchControlManager {
   
   handleTouchMove(event) {
     if (!event || !this.gameCanvas || !this.visible) return;
+    
+    // GameScene이 아니면 무시
+    if (!this.scene) {
+      return;
+    }
+    
+    // 씬 키 확인
+    const sceneKey = this.scene.scene?.key || this.scene.sys?.settings?.key || this.scene.sys?.scene?.key;
+    if (sceneKey !== 'GameScene') {
+      return; // GameScene이 아니면 완전히 무시
+    }
     
     // 아이템 선택 UI가 활성화되어 있으면 무시
     if (this.scene && this.scene.itemSelectionUI) {
@@ -410,6 +432,28 @@ export class TouchControlManager {
   handleTouchEnd(event) {
     if (!event || !this.gameCanvas) return;
     
+    // GameScene이 아니면 무시 (GameOver, MainMenu 등에서는 작동 안함)
+    if (!this.scene) {
+      return;
+    }
+    
+    // 씬 키 확인 (여러 방법으로 체크)
+    let sceneKey = null;
+    try {
+      sceneKey = this.scene.scene?.key || 
+                 this.scene.sys?.settings?.key || 
+                 this.scene.sys?.scene?.key ||
+                 (this.scene.constructor?.name === 'GameScene' ? 'GameScene' : null);
+    } catch (e) {
+      // 씬 키 확인 실패 시 무시
+      return;
+    }
+    
+    // GameScene이 아니면 완전히 무시 (로그도 출력 안함)
+    if (sceneKey !== 'GameScene') {
+      return;
+    }
+    
     // 아이템 선택 UI가 활성화되어 있으면 무시
     if (this.scene && this.scene.itemSelectionUI) {
       return;
@@ -423,7 +467,7 @@ export class TouchControlManager {
     this.resetAllControls();
     this.activeButtonId = null;
     
-    console.log('TouchControlManager: Touch end - all controls reset');
+    // 로그 제거 (GameOver 씬에서도 로그가 나타나지 않도록)
   }
   
   resetAllControls() {

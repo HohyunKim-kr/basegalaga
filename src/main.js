@@ -4,6 +4,7 @@ import { MainMenu } from './scenes/MainMenu.js';
 import { GameScene } from './scenes/GameScene.js';
 import { GameOver } from './scenes/GameOver.js';
 import { Leaderboard } from './scenes/Leaderboard.js';
+import { GameSummaryScene } from './scenes/GameSummaryScene.js';
 
 // Base MiniApp SDK - using official @farcaster/miniapp-sdk
 // Create compatibility wrapper for existing code
@@ -154,7 +155,7 @@ const config = {
       debug: false
     }
   },
-  scene: [MainMenu, GameScene, GameOver, Leaderboard],
+  scene: [MainMenu, GameScene, GameOver, Leaderboard, GameSummaryScene],
   scale: {
     mode: Phaser.Scale.RESIZE, // Fully responsive - resizes with window
     autoCenter: Phaser.Scale.CENTER_BOTH,

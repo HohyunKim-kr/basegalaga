@@ -7,6 +7,8 @@ import { isMobile } from '../main.js';
 import { TouchControlManager } from '../managers/TouchControlManager.js';
 import { Enemy } from '../entities/Enemy.js';
 import { Boss } from '../entities/Boss.js';
+import { FlockAPIService } from '../services/FlockAPIService.js';
+import { FLOCK_CONFIG } from '../config/flockConfig.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -110,6 +112,13 @@ export class GameScene extends Phaser.Scene {
     this.skillCooldown = 0;
     this.skillCooldownMax = 10000; // 10 seconds
     this.skillActive = false;
+    
+    // FLock API for AI item selection
+    this.flockAPI = new FlockAPIService(FLOCK_CONFIG.API_KEY);
+    this.useAISelection = FLOCK_CONFIG.ENABLED;
+    
+    // 선택한 아이템 추적 (게임 요약용)
+    this.selectedItemsHistory = [];
   }
 
   create() {
@@ -586,39 +595,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   startDive(enemy) {
-    if (!enemy.active || enemy.isDiving) return;
-    
-    enemy.isDiving = true;
-    enemy.body.setImmovable(false);
-    enemy.body.setVelocityY(150);
-    enemy.body.setVelocityX(Phaser.Math.Between(-100, 100));
-    enemy.body.setBounce(0.5, 0.5);
-    enemy.body.setCollideWorldBounds(true);
-    
-    // Return to formation after a while
-    this.time.delayedCall(3000, () => {
-      if (enemy.active && !this.gameOver) {
-        this.returnToFormation(enemy);
-      }
-    });
+    // Enemy 클래스의 startDive 메서드 사용
+    if (enemy && typeof enemy.startDive === 'function') {
+      enemy.startDive();
+    }
   }
 
   returnToFormation(enemy) {
-    if (!enemy.active) return;
-    
-    enemy.isDiving = false;
-    const tween = this.tweens.add({
-      targets: enemy,
-      x: enemy.originalX,
-      y: enemy.originalY,
-      duration: 2000,
-      onComplete: () => {
-        if (enemy.active) {
-          enemy.body.setImmovable(true);
-          enemy.body.setVelocity(0, 0);
-        }
-      }
-    });
+    // Enemy 클래스의 returnToFormation 메서드 사용
+    if (enemy && typeof enemy.returnToFormation === 'function') {
+      enemy.returnToFormation();
+    }
   }
 
   spawnBoss() {
@@ -926,7 +913,7 @@ export class GameScene extends Phaser.Scene {
       }
       // Boss 클래스의 destroy 메서드 사용
       if (boss.destroy) {
-        boss.destroy();
+      boss.destroy();
       }
       this.boss = null;
       }
@@ -937,6 +924,9 @@ export class GameScene extends Phaser.Scene {
 
   showItemSelection() {
     if (this.itemSelectionActive) return;
+    
+    // 이전 UI 완전히 정리 (잔상 방지)
+    this.cleanupItemSelectionUI();
     
     this.itemSelectionActive = true;
     this.physics.pause();
@@ -1040,62 +1030,70 @@ export class GameScene extends Phaser.Scene {
       itemButtons.push({ card, icon, nameText, descText, numText, itemType });
     });
     
-    // DOM 터치 이벤트로 카드 선택 처리
-    const canvas = this.game.canvas;
-    const self = this;
-    
-    const getPos = (event) => {
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-      
-      let clientX, clientY;
-      if (event.touches && event.touches.length > 0) {
-        clientX = event.touches[0].clientX;
-        clientY = event.touches[0].clientY;
-    } else {
-        clientX = event.clientX;
-        clientY = event.clientY;
-      }
-      
-      return {
-        x: (clientX - rect.left) * scaleX,
-        y: (clientY - rect.top) * scaleY
-      };
-    };
-    
-    const onItemTouch = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      
-      const pos = getPos(event);
-      console.log('Item selection touch:', pos);
-      
-      for (const area of cardAreas) {
-        if (pos.x >= area.left && pos.x <= area.right &&
-            pos.y >= area.top && pos.y <= area.bottom) {
-          console.log('Item selected:', area.itemType.name);
-          self.selectItem(area.itemType);
-          return;
-        }
-      }
-    };
-    
-    // capture: true로 등록하여 다른 이벤트보다 먼저 처리
-    canvas.addEventListener('touchstart', onItemTouch, { passive: false, capture: true });
-    canvas.addEventListener('mousedown', onItemTouch, { capture: true });
-    
-    // document 레벨에서도 등록 (더 확실하게)
-    if (typeof document !== 'undefined') {
-      document.addEventListener('touchstart', onItemTouch, { passive: false, capture: true });
-      document.addEventListener('mousedown', onItemTouch, { capture: true });
-    }
-    
     // Instructions
     const instructionY = isMobile ? height * 0.88 : height * 0.75;
-    const instructionText = this.add.text(width / 2, instructionY, 'Tap to select', createModernTextStyle(isMobile ? 12 : 16, '#ffffff', '500'))
+    const instructionText = this.add.text(
+      width / 2, 
+      instructionY, 
+      this.useAISelection ? 'AI is selecting...' : 'Tap to select', 
+      createModernTextStyle(isMobile ? 12 : 16, '#ffffff', '500')
+    )
       .setOrigin(0.5).setDepth(1003);
+    
+    // AI 선택 모드에서는 수동 선택 비활성화
+    let onItemTouch = null;
+    if (!this.useAISelection) {
+      const canvas = this.game.canvas;
+      const self = this;
+      
+      const getPos = (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        let clientX, clientY;
+        if (event.touches && event.touches.length > 0) {
+          clientX = event.touches[0].clientX;
+          clientY = event.touches[0].clientY;
+    } else {
+          clientX = event.clientX;
+          clientY = event.clientY;
+        }
+        
+        return {
+          x: (clientX - rect.left) * scaleX,
+          y: (clientY - rect.top) * scaleY
+        };
+      };
+      
+      onItemTouch = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        
+        const pos = getPos(event);
+        console.log('Item selection touch:', pos);
+        
+        for (const area of cardAreas) {
+          if (pos.x >= area.left && pos.x <= area.right &&
+              pos.y >= area.top && pos.y <= area.bottom) {
+            console.log('Item selected:', area.itemType.name);
+            self.selectItem(area.itemType);
+            return;
+          }
+        }
+      };
+      
+      // capture: true로 등록하여 다른 이벤트보다 먼저 처리
+      canvas.addEventListener('touchstart', onItemTouch, { passive: false, capture: true });
+      canvas.addEventListener('mousedown', onItemTouch, { capture: true });
+      
+      // document 레벨에서도 등록 (더 확실하게)
+      if (typeof document !== 'undefined') {
+        document.addEventListener('touchstart', onItemTouch, { passive: false, capture: true });
+        document.addEventListener('mousedown', onItemTouch, { capture: true });
+      }
+    }
     
     this.itemSelectionUI = {
       overlay,
@@ -1104,12 +1102,301 @@ export class GameScene extends Phaser.Scene {
       instructionText,
       itemButtons,
       selectedItems,
-      onItemTouch // 이벤트 핸들러 저장
+      onItemTouch, // AI 모드일 때는 null
+      cardAreas
     };
+    
+    // AI 자동 선택 활성화 시
+    if (this.useAISelection) {
+      // 랜덤 선택 모드: 게임 상태와 무관하게 완전 랜덤 선택
+      const useRandomSelection = true;
+      this.selectItemWithAI(selectedItems, instructionText, useRandomSelection);
+    }
+  }
+  
+  /**
+   * Generate game summary and show Star Wars crawl
+   */
+  async generateAndShowSummary(gameStats) {
+    try {
+      console.log('🎬 Generating game summary...', gameStats);
+      
+      // FLock API로 요약 생성
+      const summaryText = await this.flockAPI.generateGameSummary(gameStats);
+      
+      console.log('📝 Generated summary:', summaryText);
+      
+      if (!summaryText || summaryText.trim() === '') {
+        throw new Error('Empty summary text');
+      }
+      
+      // Star Wars 크롤 씬으로 전환
+      this.time.delayedCall(500, () => {
+        console.log('🎬 Starting GameSummaryScene with summary:', summaryText.substring(0, 50) + '...');
+        this.scene.start('GameSummaryScene', {
+          summaryText: summaryText,
+          gameStats: gameStats
+        });
+      });
+    } catch (error) {
+      console.error('❌ Error generating summary:', error);
+      // 에러 발생 시 바로 GameOver로 (폴백 요약 사용)
+      const fallbackSummary = this.flockAPI.generateFallbackSummary(gameStats);
+      console.log('📝 Using fallback summary:', fallbackSummary);
+      
+      const finalScore = calculateFinalScore(gameStats.score || 0, gameStats.currentStage || 1, gameStats.elapsedTime || 0);
+      this.time.delayedCall(500, () => {
+        // 폴백 요약으로도 크롤 표시 시도
+        try {
+          this.scene.start('GameSummaryScene', {
+            summaryText: fallbackSummary,
+            gameStats: gameStats
+          });
+        } catch (sceneError) {
+          console.error('Scene start error, going to GameOver:', sceneError);
+          this.scene.start('GameOver', {
+            score: finalScore,
+            baseScore: gameStats.baseScore || gameStats.score || 0,
+            time: gameStats.elapsedTime || 0,
+            stage: gameStats.currentStage || 1,
+            allCleared: gameStats.allCleared || false
+          });
+        }
+      });
+    }
+  }
+
+  /**
+   * Clean up item selection UI completely
+   */
+  cleanupItemSelectionUI() {
+    if (!this.itemSelectionUI) return;
+    
+    // 모든 트윈 정리
+    if (this.itemSelectionUI.itemButtons && Array.isArray(this.itemSelectionUI.itemButtons)) {
+      this.itemSelectionUI.itemButtons.forEach(btn => {
+        if (btn.card) this.tweens.killTweensOf(btn.card);
+        if (btn.icon) this.tweens.killTweensOf(btn.icon);
+        if (btn.selectedIcon) this.tweens.killTweensOf(btn.selectedIcon);
+      });
+    }
+    
+    // DOM 이벤트 리스너 제거
+    const canvas = this.game.canvas;
+    if (this.itemSelectionUI.onItemTouch) {
+      const onItemTouch = this.itemSelectionUI.onItemTouch;
+      canvas.removeEventListener('touchstart', onItemTouch, { capture: true });
+      canvas.removeEventListener('mousedown', onItemTouch, { capture: true });
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('touchstart', onItemTouch, { capture: true });
+        document.removeEventListener('mousedown', onItemTouch, { capture: true });
+      }
+    }
+    
+    // 모든 UI 요소 제거
+    try {
+      if (this.itemSelectionUI.overlay && this.itemSelectionUI.overlay.active) {
+        this.itemSelectionUI.overlay.destroy();
+      }
+      if (this.itemSelectionUI.panel && this.itemSelectionUI.panel.active) {
+        this.itemSelectionUI.panel.destroy();
+      }
+      if (this.itemSelectionUI.title && this.itemSelectionUI.title.active) {
+        this.itemSelectionUI.title.destroy();
+      }
+      if (this.itemSelectionUI.instructionText && this.itemSelectionUI.instructionText.active) {
+        this.itemSelectionUI.instructionText.destroy();
+      }
+      
+      if (this.itemSelectionUI.itemButtons && Array.isArray(this.itemSelectionUI.itemButtons)) {
+        this.itemSelectionUI.itemButtons.forEach(btn => {
+          if (btn.card && btn.card.active) btn.card.destroy();
+          if (btn.icon && btn.icon.active) btn.icon.destroy();
+          if (btn.nameText && btn.nameText.active) btn.nameText.destroy();
+          if (btn.descText && btn.descText.active) btn.descText.destroy();
+          if (btn.numText && btn.numText.active) btn.numText.destroy();
+          if (btn.selectedIcon && btn.selectedIcon.active) btn.selectedIcon.destroy();
+        });
+      }
+    } catch (error) {
+      console.warn('Cleanup error:', error);
+    }
+    
+    this.itemSelectionUI = null;
+  }
+
+  /**
+   * Use FLock API to automatically select the best item
+   */
+  async selectItemWithAI(selectedItems, instructionText, useRandom = false) {
+    try {
+      // 랜덤 선택 모드인 경우 게임 상태 수집 생략
+      let gameState = null;
+      if (!useRandom) {
+        gameState = {
+          currentStage: this.currentStage,
+          playerHealth: this.playerHealth,
+          maxHealth: this.maxHealth,
+          score: this.score,
+          currentWeapon: this.currentWeapon,
+          fireRate: this.fireRate,
+          activeEffects: {
+            shield: this.activeEffects.shield,
+            scoreMultiplier: this.activeEffects.scoreMultiplier
+          }
+        };
+      }
+      
+      // 선택 중 메시지 표시
+      if (instructionText && instructionText.active) {
+        instructionText.setText(useRandom ? '🎲 Random selecting...' : 'AI is analyzing...');
+      }
+      
+      // API 호출 시작 시간 측정
+      const selectionStartTime = performance.now();
+      
+      // 랜덤 선택 또는 AI 선택
+      const selectedIndex = await this.flockAPI.selectItem(gameState, selectedItems, useRandom);
+      
+      const selectionEndTime = performance.now();
+      const selectionTime = (selectionEndTime - selectionStartTime).toFixed(2);
+      console.log(`⏱️ Total selection time: ${selectionTime}ms`);
+      
+      const selectedItem = selectedItems[selectedIndex];
+      console.log('✓ Selected:', selectedItem?.name, '(index:', selectedIndex + ')', useRandom ? '(RANDOM)' : '(AI)');
+      
+      // 선택된 아이템 하이라이트
+      if (selectedIndex >= 0 && selectedIndex < selectedItems.length) {
+        const selectedItem = selectedItems[selectedIndex];
+        
+        // 선택된 카드 하이라이트 애니메이션
+        if (this.itemSelectionUI && this.itemSelectionUI.itemButtons && this.itemSelectionUI.itemButtons[selectedIndex]) {
+          const btn = this.itemSelectionUI.itemButtons[selectedIndex];
+          
+          // 선택된 카드 강조 표시 (더 명확하게)
+          btn.card.setStrokeStyle(5, 0xffffff, 1);
+          btn.card.setFillStyle(selectedItem.color, 0.6);
+          
+          // 선택 표시 아이콘 추가
+          if (!btn.selectedIcon) {
+            btn.selectedIcon = this.add.text(btn.card.x, btn.card.y - btn.card.height / 2 + 10, '✓', {
+              fontSize: isMobile ? '20px' : '24px',
+              fontFamily: 'Arial',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              stroke: '#000000',
+              strokeThickness: 3
+            }).setOrigin(0.5).setDepth(1004);
+          }
+          
+          // 랜덤 선택 시 몸 사이즈 1.3배 커지는 애니메이션
+          if (useRandom) {
+            // 모든 카드에 랜덤 선택 애니메이션 적용
+            this.itemSelectionUI.itemButtons.forEach((button, idx) => {
+              if (button.card && button.card.active) {
+                // 원래 크기 저장
+                if (!button.originalScale) {
+                  button.originalScale = { x: button.card.scaleX, y: button.card.scaleY };
+                }
+                
+                // 랜덤하게 1.3배 커지는 애니메이션
+                this.tweens.add({
+                  targets: [button.card, button.icon],
+                  scaleX: button.originalScale.x * 1.3,
+                  scaleY: button.originalScale.y * 1.3,
+                  duration: 300,
+                  ease: 'Back.easeOut',
+                  onComplete: () => {
+                    // 선택된 카드만 유지, 나머지는 원래 크기로
+                    if (idx !== selectedIndex) {
+                      this.tweens.add({
+                        targets: [button.card, button.icon],
+                        scaleX: button.originalScale.x,
+                        scaleY: button.originalScale.y,
+                        duration: 200
+                      });
+                    }
+                  }
+                });
+              }
+            });
+          }
+          
+          this.tweens.add({
+            targets: [btn.card, btn.icon, btn.selectedIcon],
+            scale: { from: 1, to: 1.2 },
+            alpha: { from: 1, to: 1 },
+            duration: 400,
+            yoyo: true,
+            repeat: 2,
+            onComplete: () => {
+              // instructionText가 아직 존재하는지 확인
+              if (this.itemSelectionUI && this.itemSelectionUI.instructionText && this.itemSelectionUI.instructionText.active) {
+                try {
+                  const selectionText = useRandom ? '🎲 RANDOM SELECTED' : '✓ AI SELECTED';
+                  this.itemSelectionUI.instructionText.setText(`${selectionText}: ${selectedItem.name}`);
+                  this.itemSelectionUI.instructionText.setColor(`#${selectedItem.color.toString(16).padStart(6, '0')}`);
+                  const fontSize = this.scale.width < 768 ? 14 : 18;
+                  this.itemSelectionUI.instructionText.setFontSize(fontSize);
+                } catch (error) {
+                  console.warn('Error updating instruction text:', error);
+                }
+              }
+              // 0.5초 후 자동 선택 (대기 시간 단축)
+              this.time.delayedCall(500, () => {
+                console.log('✓ Applying selected item:', selectedItem.name);
+                this.selectItem(selectedItem);
+              });
+            }
+          });
+        } else {
+          // UI가 없으면 바로 선택
+          console.log('UI not available, selecting immediately:', selectedItem.name);
+          this.time.delayedCall(500, () => {
+            this.selectItem(selectedItem);
+          });
+        }
+      } else {
+        // 폴백: 첫 번째 아이템 선택
+        if (this.itemSelectionUI && this.itemSelectionUI.instructionText && this.itemSelectionUI.instructionText.active) {
+          try {
+            this.itemSelectionUI.instructionText.setText('AI selection failed, using fallback');
+          } catch (error) {
+            console.warn('Error updating instruction text:', error);
+          }
+        }
+        this.time.delayedCall(1000, () => {
+          this.selectItem(selectedItems[0]);
+        });
+      }
+    } catch (error) {
+      console.error('AI selection error:', error);
+      if (this.itemSelectionUI && this.itemSelectionUI.instructionText && this.itemSelectionUI.instructionText.active) {
+        try {
+          this.itemSelectionUI.instructionText.setText('AI error, using fallback');
+        } catch (error) {
+          console.warn('Error updating instruction text:', error);
+        }
+      }
+      // 에러 발생 시 폴백 선택
+      this.time.delayedCall(1000, () => {
+        this.selectItem(selectedItems[0]);
+      });
+    }
   }
 
   selectItem(itemType) {
     if (!this.itemSelectionActive) return;
+    
+    // 선택한 아이템 기록 (게임 요약용)
+    if (itemType && itemType.name) {
+      this.selectedItemsHistory.push({
+        name: itemType.name,
+        stage: this.currentStage,
+        timestamp: Date.now()
+      });
+      console.log('📝 Item selected:', itemType.name, 'at stage', this.currentStage);
+    }
     
     // DOM 이벤트 리스너 먼저 제거 (itemSelectionUI가 null이 되기 전에)
     const canvas = this.game.canvas;
@@ -1143,11 +1430,33 @@ export class GameScene extends Phaser.Scene {
         
         if (this.itemSelectionUI.itemButtons && Array.isArray(this.itemSelectionUI.itemButtons)) {
           this.itemSelectionUI.itemButtons.forEach(btn => {
-            if (btn.card && btn.card.active) btn.card.destroy();
-            if (btn.icon && btn.icon.active) btn.icon.destroy();
+            // 모든 버튼 요소 제거
+            if (btn.card && btn.card.active) {
+              // 트윈 정리
+              if (btn.card.tweenData) {
+                this.tweens.killTweensOf(btn.card);
+              }
+              btn.card.destroy();
+            }
+            if (btn.icon && btn.icon.active) {
+              if (btn.icon.tweenData) {
+                this.tweens.killTweensOf(btn.icon);
+              }
+              btn.icon.destroy();
+            }
             if (btn.nameText && btn.nameText.active) btn.nameText.destroy();
             if (btn.descText && btn.descText.active) btn.descText.destroy();
             if (btn.numText && btn.numText.active) btn.numText.destroy();
+            // 선택 표시 아이콘 제거 (잔상 방지)
+            if (btn.selectedIcon && btn.selectedIcon.active) {
+              if (btn.selectedIcon.tweenData) {
+                this.tweens.killTweensOf(btn.selectedIcon);
+              }
+              btn.selectedIcon.destroy();
+            }
+            // 원래 크기 정보도 초기화
+            btn.originalScale = null;
+            btn.selectedIcon = null;
           });
         }
         
@@ -1564,13 +1873,15 @@ export class GameScene extends Phaser.Scene {
       // Calculate final score
       const finalScore = calculateFinalScore(this.score, this.elapsedTime, this.currentStage);
       
-      this.time.delayedCall(500, () => {
-        this.scene.start('GameOver', { 
+      // 게임 통계 수집 및 요약 생성
+      this.generateAndShowSummary({
           score: finalScore,
           baseScore: this.score,
-          time: this.elapsedTime,
-          stage: this.currentStage
-        });
+        elapsedTime: this.elapsedTime,
+        currentStage: this.currentStage,
+        enemiesKilled: this.enemiesKilled,
+        selectedItemsHistory: this.selectedItemsHistory,
+        allCleared: false
       });
     }
   }
@@ -1621,11 +1932,14 @@ export class GameScene extends Phaser.Scene {
     } else {
       // All stages cleared!
       const finalScore = calculateFinalScore(this.score, this.elapsedTime, this.currentStage);
-      this.scene.start('GameOver', {
+      // 게임 통계 수집 및 요약 생성
+      this.generateAndShowSummary({
         score: finalScore,
         baseScore: this.score,
-        time: this.elapsedTime,
-        stage: this.currentStage,
+        elapsedTime: this.elapsedTime,
+        currentStage: this.currentStage,
+        enemiesKilled: this.enemiesKilled,
+        selectedItemsHistory: this.selectedItemsHistory,
         allCleared: true
       });
     }
@@ -1693,6 +2007,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   shutdown() {
+    // TouchControlManager 완전히 정리
+    if (this.touchControlManager) {
+      try {
+        this.touchControlManager.destroy();
+        this.touchControlManager = null;
+        console.log('GameScene: TouchControlManager destroyed');
+      } catch (error) {
+        console.warn('TouchControlManager cleanup error:', error);
+      }
+    }
+    
     // Clean up mobile controls
     if (this.mobileControls) {
       Object.values(this.mobileControls).forEach(control => {
