@@ -5,12 +5,43 @@ export class Enemy {
     this.scene = scene;
     this.config = config;
     
-    // Create enemy sprite
-    this.sprite = scene.add.rectangle(x, y, 30, 30, config.enemyColor);
+    // Create enemy sprite - 이미지가 있으면 이미지 사용, 없으면 사각형 사용
+    const imageKey = config.enemyImage || null;
+    
+    // 이미지 로드 상태 확인 및 디버깅
+    if (imageKey) {
+      const textureExists = scene.textures.exists(imageKey);
+      
+      if (textureExists) {
+        try {
+          // 이미지로 생성
+          this.sprite = scene.add.image(x, y, imageKey);
+          // 이미지 크기 조정 (원하는 크기로 설정)
+          this.sprite.setDisplaySize(30, 30);
+          // 이미지가 성공적으로 사용됨
+        } catch (error) {
+          console.error(`이미지 생성 실패 (${imageKey}):`, error);
+          // 이미지 생성 실패 시 사각형 사용
+          this.sprite = scene.add.rectangle(x, y, 30, 30, config.enemyColor);
+        }
+      } else {
+        console.error(`✗ 이미지 텍스처 없음: ${imageKey} - 사각형 사용`);
+        // 이미지가 없으면 기존처럼 사각형 사용
+        this.sprite = scene.add.rectangle(x, y, 30, 30, config.enemyColor);
+      }
+    } else {
+      console.warn('imageKey가 없음, 사각형 사용');
+      // 이미지가 없으면 기존처럼 사각형 사용
+      this.sprite = scene.add.rectangle(x, y, 30, 30, config.enemyColor);
+    }
+    
     scene.physics.add.existing(this.sprite);
     if (this.sprite.body) {
       this.sprite.body.setImmovable(true);
     }
+    
+    // Enemy 객체 참조를 sprite에 저장 (충돌 감지 시 사용)
+    this.sprite.enemyRef = this;
     
     // Enemy properties
     this.health = config.enemyHealth;

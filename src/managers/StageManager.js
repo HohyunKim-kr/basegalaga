@@ -57,6 +57,7 @@ export class StageManager {
         
         const enemy = new Enemy(this.scene, x, y, {
           enemyColor: config.enemyColor,
+          enemyImage: config.enemyImage,  // 이미지 키 추가
           enemyHealth: config.enemyHealth,
           enemyDamage: config.enemyDamage,
           enemyPoints: config.enemyPoints

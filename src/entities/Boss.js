@@ -5,8 +5,19 @@ export class Boss {
     this.scene = scene;
     this.config = config;
     
-    // Create boss sprite
-    this.sprite = scene.add.rectangle(x, y, config.size, config.size, config.color);
+    // Create boss sprite - 이미지가 있으면 이미지 사용, 없으면 사각형 사용
+    const imageKey = config.bossImage || null;
+    
+    if (imageKey && scene.textures.exists(imageKey)) {
+      // 이미지로 생성
+      this.sprite = scene.add.image(x, y, imageKey);
+      // 이미지 크기 조정 (config.size에 맞춤)
+      this.sprite.setDisplaySize(config.size, config.size);
+    } else {
+      // 이미지가 없으면 기존처럼 사각형 사용
+      this.sprite = scene.add.rectangle(x, y, config.size, config.size, config.color);
+    }
+    
     scene.physics.add.existing(this.sprite);
     if (this.sprite.body) {
       this.sprite.body.setImmovable(true);

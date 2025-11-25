@@ -5,10 +5,57 @@ import { WEAPON_PATTERNS, WEAPON_UPGRADE_ORDER } from '../utils/weaponPatterns.j
 import { ITEM_TYPES, getRandomItem } from '../utils/items.js';
 import { isMobile } from '../main.js';
 import { TouchControlManager } from '../managers/TouchControlManager.js';
+import { Enemy } from '../entities/Enemy.js';
+import { Boss } from '../entities/Boss.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
     super({ key: 'GameScene' });
+  }
+
+  preload() {
+    console.log('=== GameScene preload 시작 ===');
+    
+    // 몬스터 이미지 로드
+    // 이미지 파일은 public/enemies/ 폴더에 넣어주세요
+    // 예: public/enemies/enemy1.png, enemy2.png, enemy3.png, enemy4.png
+    const imagePaths = {
+      'enemy1': '/enemies/enemy1.png',
+      'enemy2': '/enemies/enemy2.png',
+      'enemy3': '/enemies/enemy3.png',
+      'enemy4': '/enemies/enemy4.png',
+      'boss1': '/enemies/boss1.png',
+      'boss2': '/enemies/boss2.png'
+    };
+    
+    Object.entries(imagePaths).forEach(([key, path]) => {
+      console.log(`이미지 로드 시도: ${key} -> ${path}`);
+      this.load.image(key, path);
+    });
+    
+    // 이미지 로드 에러 처리
+    this.load.on('fileerror', (file) => {
+      console.error('❌ 이미지 로드 실패:', file.key, file.url, file);
+    });
+    
+    // 이미지 로드 완료 확인
+    this.load.on('complete', () => {
+      console.log('=== 이미지 로드 완료 ===');
+      // 로드된 이미지 확인
+      Object.keys(imagePaths).forEach(key => {
+        if (this.textures.exists(key)) {
+          const texture = this.textures.get(key);
+          console.log(`✓ ${key} 이미지 로드됨 (${texture.width}x${texture.height})`);
+        } else {
+          console.error(`✗ ${key} 이미지 로드 실패 - 파일 경로 확인 필요: ${imagePaths[key]}`);
+        }
+      });
+    });
+    
+    // 개별 파일 로드 완료 확인
+    this.load.on('filecomplete', (key, type, data) => {
+      console.log(`✓ 파일 로드 완료: ${key} (${type})`);
+    });
   }
 
   init() {
@@ -66,6 +113,105 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    const { width, height } = this.cameras.main;
+
+    // 이미지 로드 상태 확인 및 재로드
+    const imageKeys = ['enemy1', 'enemy2', 'enemy3', 'enemy4', 'boss1', 'boss2'];
+    const imagePaths = {
+      'enemy1': '/enemies/enemy1.png',
+      'enemy2': '/enemies/enemy2.png',
+      'enemy3': '/enemies/enemy3.png',
+      'enemy4': '/enemies/enemy4.png',
+      'boss1': '/enemies/boss1.png',
+      'boss2': '/enemies/boss2.png'
+    };
+    
+    const missingImages = [];
+    
+    console.log('=== 이미지 로드 상태 확인 ===');
+    imageKeys.forEach(key => {
+      if (this.textures.exists(key)) {
+        try {
+          const texture = this.textures.get(key);
+          console.log(`✓ ${key} 이미지 존재 (${texture.width}x${texture.height})`);
+        } catch (error) {
+          console.warn(`⚠ ${key} 텍스처 확인 중 오류:`, error);
+          missingImages.push(key);
+        }
+      } else {
+        console.warn(`✗ ${key} 이미지 없음 - 다시 로드 시도`);
+        missingImages.push(key);
+      }
+    });
+    
+    // 이미지가 없으면 다시 로드
+    if (missingImages.length > 0) {
+      console.log('누락된 이미지 재로드 시작:', missingImages);
+      
+      // 기존 리스너 제거
+      this.load.removeAllListeners();
+      
+      // 모든 이미지를 다시 로드 (캐시 무시)
+      imageKeys.forEach(key => {
+        const path = imagePaths[key];
+        console.log(`이미지 재로드: ${key} -> ${path}`);
+        // 기존 텍스처가 있으면 제거
+        if (this.textures.exists(key)) {
+          this.textures.remove(key);
+        }
+        this.load.image(key, path);
+      });
+      
+      // 에러 처리
+      this.load.once('fileerror', (file) => {
+        console.error('❌ 이미지 재로드 실패:', file.key, file.url);
+      });
+      
+      // 완료 처리
+      this.load.once('complete', () => {
+        console.log('=== 이미지 재로드 완료 ===');
+        // 재로드된 이미지 확인
+        let allLoaded = true;
+        imageKeys.forEach(key => {
+          if (this.textures.exists(key)) {
+            try {
+              const texture = this.textures.get(key);
+              console.log(`✓ ${key} 이미지 로드됨 (${texture.width}x${texture.height})`);
+            } catch (error) {
+              console.error(`✗ ${key} 텍스처 접근 실패:`, error);
+              allLoaded = false;
+            }
+          } else {
+            console.error(`✗ ${key} 이미지 여전히 없음`);
+            allLoaded = false;
+          }
+        });
+        
+        if (allLoaded) {
+          console.log('모든 이미지 로드 완료 - 게임 초기화 시작');
+          // 이미지 로드 완료 후 게임 초기화
+          this.initializeGame();
+        } else {
+          console.error('일부 이미지 로드 실패 - 게임은 계속 진행하지만 이미지 없이 표시됩니다');
+          this.initializeGame();
+        }
+      });
+      
+      // 개별 파일 로드 완료 확인
+      this.load.once('filecomplete', (key, type) => {
+        console.log(`✓ 파일 재로드 완료: ${key} (${type})`);
+      });
+      
+      this.load.start();
+      return; // 이미지 로드 중이면 여기서 종료
+    }
+
+    // 이미지가 모두 로드되어 있으면 게임 초기화
+    console.log('모든 이미지가 이미 로드되어 있음 - 게임 초기화 시작');
+    this.initializeGame();
+  }
+  
+  initializeGame() {
     const { width, height } = this.cameras.main;
 
     // Resume physics if it was paused
@@ -175,10 +321,14 @@ export class GameScene extends Phaser.Scene {
     
     // Get controls reference for easier access
     this.touchControls = this.touchControlManager.getControls();
+    
+    // 디버깅: 컨트롤이 제대로 생성되었는지 확인
+    console.log('GameScene: TouchControlManager created', this.touchControlManager);
+    console.log('GameScene: TouchControls', this.touchControls);
 
     // Collisions
     this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this);
-    this.physics.add.overlap(this.bullets, this.boss, this.hitBoss, null, this);
+    // Boss 충돌 감지는 spawnBoss 후에 등록됨
     this.physics.add.overlap(this.player, this.enemies, this.hitPlayer, null, this);
     this.physics.add.overlap(this.player, this.enemyBullets, this.hitPlayer, null, this);
 
@@ -278,9 +428,9 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Enemy AI
-    this.enemies.children.entries.forEach(enemy => {
-      if (!enemy || !enemy.active) return;
+    // Enemy AI - enemyFormation 배열 사용 (Enemy 객체 직접 접근)
+    this.enemyFormation.forEach(enemy => {
+      if (!enemy || !enemy.active || !enemy.sprite || !enemy.sprite.active) return;
       
       try {
         const config = STAGE_CONFIG[this.currentStage];
@@ -297,7 +447,8 @@ export class GameScene extends Phaser.Scene {
         }
 
         // Galaga pattern: some enemies dive down
-        if (enemy.diveTimer && time > enemy.diveTimer && !enemy.isDiving) {
+        // Enemy 클래스의 shouldDive 메서드 사용
+        if (enemy && typeof enemy.shouldDive === 'function' && enemy.shouldDive(time)) {
           this.startDive(enemy);
         }
       } catch (error) {
@@ -408,20 +559,18 @@ export class GameScene extends Phaser.Scene {
         const x = startX + col * spacingX;
         const y = startY + row * spacingY;
         
-        const enemy = this.add.rectangle(x, y, 30, 30, config.enemyColor);
-        this.physics.add.existing(enemy);
-        enemy.body.setImmovable(true);
-        enemy.health = config.enemyHealth;
-        enemy.maxHealth = config.enemyHealth;
-        enemy.damage = config.enemyDamage;
-        enemy.points = config.enemyPoints;
-        enemy.originalX = x;
-        enemy.originalY = y;
-        enemy.isDiving = false;
-        enemy.diveTimer = this.time.now + Phaser.Math.Between(5000, 15000);
+        // Enemy 클래스를 사용하여 이미지 적용
+        const enemy = new Enemy(this, x, y, {
+          enemyColor: config.enemyColor,
+          enemyImage: config.enemyImage,
+          enemyHealth: config.enemyHealth,
+          enemyDamage: config.enemyDamage,
+          enemyPoints: config.enemyPoints
+        });
         
-        this.enemies.add(enemy);
+        this.enemies.add(enemy.sprite);
         this.enemyFormation.push(enemy);
+        enemy.startFormationMovement(enemyIndex);
         enemyIndex++;
       }
     }
@@ -431,26 +580,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   startFormationMovement() {
-    // Galaga style: enemies move side to side, gradually moving down
-    // Create individual tweens for each enemy to avoid issues
-    this.enemyFormation.forEach((enemy, index) => {
-      if (!enemy || !enemy.active) return;
-      
-      try {
-        // Side to side movement with slight delay for wave effect
-        this.tweens.add({
-          targets: enemy,
-          x: enemy.x + 100,
-          duration: 2000 + (index % 3) * 200,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut',
-          delay: index * 100
-        });
-      } catch (error) {
-        console.warn('Formation movement error:', error);
-      }
-    });
+    // Enemy 클래스의 startFormationMovement를 사용
+    // 이미 Enemy 클래스에서 처리하므로 여기서는 호출만 하거나 제거
+    // Enemy 생성 시 이미 startFormationMovement가 호출됨
   }
 
   startDive(enemy) {
@@ -496,69 +628,34 @@ export class GameScene extends Phaser.Scene {
     if (!bossConfig) return;
 
     const { width } = this.cameras.main;
-    this.boss = this.add.rectangle(width / 2, 100, bossConfig.size, bossConfig.size, bossConfig.color);
-    this.physics.add.existing(this.boss);
-    this.boss.body.setImmovable(true);
-    this.boss.health = bossConfig.health;
-    this.boss.maxHealth = bossConfig.health;
-    this.boss.damage = bossConfig.damage;
-    this.boss.points = bossConfig.points;
-    this.boss.pattern = bossConfig.pattern;
-    this.boss.startX = width / 2;
-    this.boss.startY = 100;
-    this.boss.patternTime = 0;
-
-    // Boss health bar
-    this.bossHealthBar = this.add.rectangle(width / 2, 50, 200, 10, 0xff0000);
-    this.bossHealthBar.setOrigin(0.5);
-    this.updateBossHealthBar();
+    
+    // Boss 클래스를 사용하여 이미지 적용
+    this.boss = new Boss(this, width / 2, 100, bossConfig);
+    
+    // Boss health bar는 Boss 클래스에서 생성하므로 참조만 저장
+    this.bossHealthBar = this.boss.healthBar;
+    
+    // Boss 충돌 감지 등록
+    if (this.boss && this.boss.sprite) {
+      this.physics.add.overlap(this.bullets, this.boss.sprite, this.hitBoss, null, this);
+    }
   }
 
   updateBossPattern(time) {
-    if (!this.boss || !this.boss.active) return;
-    
-    try {
-      const bossConfig = BOSS_CONFIG[this.currentStage];
-      if (!bossConfig) return;
-      
-      const { width } = this.cameras.main;
-      
-      if (!this.boss.patternTime) {
-        this.boss.patternTime = 0;
-      }
-      
-      if (bossConfig.pattern === 'zigzag') {
-        // Zigzag pattern
-        this.boss.patternTime += 0.02;
-        const amplitude = width / 3;
-        this.boss.x = this.boss.startX + Math.sin(this.boss.patternTime) * amplitude;
-        this.boss.y = this.boss.startY + Math.cos(this.boss.patternTime * 2) * 30;
-      } else if (bossConfig.pattern === 'spiral') {
-        // Spiral pattern
-        this.boss.patternTime += 0.015;
-        const radius = 100 + Math.sin(this.boss.patternTime) * 50;
-        this.boss.x = this.boss.startX + Math.cos(this.boss.patternTime) * radius;
-        this.boss.y = this.boss.startY + Math.sin(this.boss.patternTime) * 50;
-      }
-    } catch (error) {
-      console.warn('Boss pattern update error:', error);
+    // Boss 클래스의 updatePattern 메서드 사용
+    if (this.boss && typeof this.boss.updatePattern === 'function') {
+      this.boss.updatePattern(time);
     }
   }
 
   updateBossHealthBar() {
-    if (!this.boss || !this.bossHealthBar) return;
-    
-    const healthPercent = this.boss.health / this.boss.maxHealth;
-    const barWidth = 200 * healthPercent;
-    this.bossHealthBar.setSize(barWidth, 10);
-    
-    // Color based on health
-    if (healthPercent > 0.5) {
-      this.bossHealthBar.setFillStyle(0xff0000);
-    } else if (healthPercent > 0.25) {
-      this.bossHealthBar.setFillStyle(0xff8800);
-    } else {
-      this.bossHealthBar.setFillStyle(0xffff00);
+    // Boss 클래스의 updateHealthBar 메서드 사용
+    if (this.boss && typeof this.boss.updateHealthBar === 'function') {
+      this.boss.updateHealthBar();
+    }
+    // healthBar 참조 업데이트
+    if (this.boss && this.boss.healthBar) {
+      this.bossHealthBar = this.boss.healthBar;
     }
   }
 
@@ -600,11 +697,12 @@ export class GameScene extends Phaser.Scene {
       const config = STAGE_CONFIG[this.currentStage];
       if (!config) return;
       const stage = this.currentStage;
+      const bulletColor = config.enemyColor; // Enemy 클래스의 config에서 색상 가져오기
     
     // Vary bullet patterns based on stage
     if (stage <= 2) {
       // Early stages: simple straight or slightly aimed
-      const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, enemy.fillColor);
+      const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
       this.physics.add.existing(bullet);
       this.enemyBullets.add(bullet);
       
@@ -623,7 +721,7 @@ export class GameScene extends Phaser.Scene {
       if (Math.random() < 0.2 && stage >= 4) {
         // 20% chance for spread shot (stage 4+)
         for (let i = 0; i < 3; i++) {
-          const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, enemy.fillColor);
+          const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
           const spread = (i - 1) * 0.3;
@@ -633,7 +731,7 @@ export class GameScene extends Phaser.Scene {
         }
       } else {
         // Aimed shot
-        const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, enemy.fillColor);
+        const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
         this.physics.add.existing(bullet);
         this.enemyBullets.add(bullet);
         const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
@@ -646,7 +744,7 @@ export class GameScene extends Phaser.Scene {
       if (pattern < 0.3) {
         // 30% spread shot
         for (let i = 0; i < 3; i++) {
-          const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, enemy.fillColor);
+          const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
           const spread = (i - 1) * 0.4;
@@ -657,7 +755,7 @@ export class GameScene extends Phaser.Scene {
       } else if (pattern < 0.5 && stage >= 8) {
         // 20% chance for double shot (stage 8+)
         for (let i = 0; i < 2; i++) {
-          const bullet = this.add.rectangle(enemy.x + (i - 0.5) * 15, enemy.y + 20, 5, 15, enemy.fillColor);
+          const bullet = this.add.rectangle(enemy.x + (i - 0.5) * 15, enemy.y + 20, 5, 15, bulletColor);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
           const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
@@ -666,7 +764,7 @@ export class GameScene extends Phaser.Scene {
         }
       } else {
         // Aimed shot with prediction
-        const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, enemy.fillColor);
+        const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
         this.physics.add.existing(bullet);
         this.enemyBullets.add(bullet);
         // Predict player movement (터치 컨트롤 기반)
@@ -746,14 +844,23 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  hitEnemy(bullet, enemy) {
-    if (!enemy || !bullet || !enemy.active || !bullet.active) return;
+  hitEnemy(bullet, enemySprite) {
+    if (!enemySprite || !bullet || !enemySprite.active || !bullet.active) return;
     
     try {
-      bullet.destroy();
-      enemy.health -= 1;
+      // sprite에서 Enemy 객체 참조 가져오기
+      const enemy = enemySprite.enemyRef;
+      if (!enemy) {
+        console.warn('Enemy 객체 참조 없음');
+        return;
+      }
       
-      if (enemy.health <= 0) {
+      bullet.destroy();
+      
+      // Enemy 클래스의 takeDamage 메서드 사용
+      const isDead = enemy.takeDamage(1);
+      
+      if (isDead) {
         // Calculate score with multiplier
         const basePoints = enemy.points || 10;
         const finalPoints = Math.floor(basePoints * this.activeEffects.scoreMultiplier);
@@ -761,6 +868,13 @@ export class GameScene extends Phaser.Scene {
         this.enemiesKilled++;
         this.scoreText.setText(`SCORE: ${this.score}`);
         
+        // enemyFormation에서 제거
+        const index = this.enemyFormation.indexOf(enemy);
+        if (index > -1) {
+          this.enemyFormation.splice(index, 1);
+        }
+        
+        // Enemy 클래스의 destroy 메서드 사용
         enemy.destroy();
       }
     } catch (error) {
@@ -768,15 +882,24 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  hitBoss(bullet, boss) {
-    if (!boss || !bullet || !boss.active || !bullet.active) return;
+  hitBoss(bullet, bossSprite) {
+    if (!bossSprite || !bullet || !bossSprite.active || !bullet.active) return;
     
     try {
+      // sprite에서 Boss 객체 참조 가져오기
+      const boss = this.boss;
+      if (!boss) {
+        console.warn('Boss 객체 없음');
+        return;
+      }
+      
       bullet.destroy();
-      boss.health -= 1;
+      
+      // Boss 클래스의 takeDamage 메서드 사용
+      const isDead = boss.takeDamage(1);
       this.updateBossHealthBar();
       
-      if (boss.health <= 0) {
+      if (isDead) {
       // Calculate score with multiplier
       const basePoints = boss.points;
       const finalPoints = Math.floor(basePoints * this.activeEffects.scoreMultiplier);
@@ -801,7 +924,10 @@ export class GameScene extends Phaser.Scene {
         this.bossHealthBar.destroy();
         this.bossHealthBar = null;
       }
-      boss.destroy();
+      // Boss 클래스의 destroy 메서드 사용
+      if (boss.destroy) {
+        boss.destroy();
+      }
       this.boss = null;
       }
     } catch (error) {
@@ -815,9 +941,9 @@ export class GameScene extends Phaser.Scene {
     this.itemSelectionActive = true;
     this.physics.pause();
     
-    // 터치 컨트롤 일시 비활성화
+    // 터치 컨트롤 숨기기
     if (this.touchControlManager) {
-      this.touchControlManager.destroy();
+      this.touchControlManager.hide();
     }
     
     const { width, height } = this.cameras.main;
@@ -940,18 +1066,31 @@ export class GameScene extends Phaser.Scene {
     
     const onItemTouch = (event) => {
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      
       const pos = getPos(event);
+      console.log('Item selection touch:', pos);
+      
       for (const area of cardAreas) {
         if (pos.x >= area.left && pos.x <= area.right &&
             pos.y >= area.top && pos.y <= area.bottom) {
+          console.log('Item selected:', area.itemType.name);
           self.selectItem(area.itemType);
-          break;
+          return;
         }
       }
     };
     
-    canvas.addEventListener('touchstart', onItemTouch, { passive: false });
-    canvas.addEventListener('mousedown', onItemTouch);
+    // capture: true로 등록하여 다른 이벤트보다 먼저 처리
+    canvas.addEventListener('touchstart', onItemTouch, { passive: false, capture: true });
+    canvas.addEventListener('mousedown', onItemTouch, { capture: true });
+    
+    // document 레벨에서도 등록 (더 확실하게)
+    if (typeof document !== 'undefined') {
+      document.addEventListener('touchstart', onItemTouch, { passive: false, capture: true });
+      document.addEventListener('mousedown', onItemTouch, { capture: true });
+    }
     
     // Instructions
     const instructionY = isMobile ? height * 0.88 : height * 0.75;
@@ -971,6 +1110,20 @@ export class GameScene extends Phaser.Scene {
 
   selectItem(itemType) {
     if (!this.itemSelectionActive) return;
+    
+    // DOM 이벤트 리스너 먼저 제거 (itemSelectionUI가 null이 되기 전에)
+    const canvas = this.game.canvas;
+    if (this.itemSelectionUI && this.itemSelectionUI.onItemTouch) {
+      const onItemTouch = this.itemSelectionUI.onItemTouch;
+      canvas.removeEventListener('touchstart', onItemTouch, { capture: true });
+      canvas.removeEventListener('mousedown', onItemTouch, { capture: true });
+      
+      // document 레벨 리스너도 제거
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('touchstart', onItemTouch, { capture: true });
+        document.removeEventListener('mousedown', onItemTouch, { capture: true });
+      }
+    }
     
     // Clean up selection UI
     if (this.itemSelectionUI) {
@@ -1010,17 +1163,10 @@ export class GameScene extends Phaser.Scene {
       this.itemSelectionUI = null;
     }
     
-    // DOM 이벤트 리스너 제거
-    const canvas = this.game.canvas;
-    if (this.itemSelectionUI && this.itemSelectionUI.onItemTouch) {
-      canvas.removeEventListener('touchstart', this.itemSelectionUI.onItemTouch);
-      canvas.removeEventListener('mousedown', this.itemSelectionUI.onItemTouch);
+    // 터치 컨트롤 다시 표시
+    if (this.touchControlManager) {
+      this.touchControlManager.show();
     }
-    
-    // TouchControlManager 재설정
-    this.touchControlManager = new TouchControlManager(this);
-    this.touchControlManager.createControls();
-    this.touchControls = this.touchControlManager.getControls();
     
     this.itemSelectionActive = false;
     this.physics.resume();
@@ -1376,28 +1522,37 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  hitPlayer(player, enemyOrBullet) {
+  hitPlayer(player, enemySpriteOrBullet) {
     if (this.gameOver) return;
     
     // Shield protects from damage
     if (this.activeEffects.shield) {
-      if (enemyOrBullet.body && enemyOrBullet.body.velocity) {
-        if (this.enemyBullets.contains(enemyOrBullet)) {
-          enemyOrBullet.destroy();
+      if (enemySpriteOrBullet.body && enemySpriteOrBullet.body.velocity) {
+        if (this.enemyBullets.contains(enemySpriteOrBullet)) {
+          enemySpriteOrBullet.destroy();
         }
       }
       return; // Shield blocks damage
     }
     
-    if (enemyOrBullet && enemyOrBullet.active) {
-      const damage = enemyOrBullet.damage || 1;
+    if (enemySpriteOrBullet && enemySpriteOrBullet.active) {
+      // Enemy sprite인 경우 Enemy 객체에서 damage 가져오기
+      let damage = 1;
+      if (enemySpriteOrBullet.enemyRef) {
+        // Enemy 객체가 있으면 damage 가져오기
+        damage = enemySpriteOrBullet.enemyRef.damage || 1;
+      } else if (enemySpriteOrBullet.damage) {
+        // 직접 damage 속성이 있으면 사용 (bullet 등)
+        damage = enemySpriteOrBullet.damage;
+      }
+      
       this.playerHealth = Math.max(0, this.playerHealth - damage);
       this.healthText.setText(`HP: ${this.playerHealth}/${this.maxHealth}`);
       
-      if (enemyOrBullet.body && enemyOrBullet.body.velocity) {
+      if (enemySpriteOrBullet.body && enemySpriteOrBullet.body.velocity) {
         // Only destroy bullets, not enemies (enemies bounce)
-        if (this.enemyBullets.contains(enemyOrBullet)) {
-          enemyOrBullet.destroy();
+        if (this.enemyBullets.contains(enemySpriteOrBullet)) {
+          enemySpriteOrBullet.destroy();
         }
       }
     }

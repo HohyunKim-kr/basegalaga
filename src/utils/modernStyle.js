@@ -59,11 +59,13 @@ export function createModernTextStyle(size, color = '#ffffff', weight = '700') {
 export function createModernButton(scene, x, y, width, height, color, text, callback) {
   const button = scene.add.rectangle(x, y, width, height, color, 0.9);
   button.setStrokeStyle(2, color, 1);
-  button.setDepth(100);
+  button.setDepth(20000); // 매우 높은 depth로 설정
+  button.setScrollFactor(0); // 스크롤되지 않도록
   
   const buttonText = scene.add.text(x, y, text, createModernTextStyle(Math.min(width / 8, 18), '#ffffff', '600'))
     .setOrigin(0.5)
-    .setDepth(101);
+    .setDepth(20001)
+    .setScrollFactor(0);
   
   // 버튼 영역 정의
   const bounds = {
@@ -101,21 +103,30 @@ export function createModernButton(scene, x, y, width, height, color, text, call
   };
   
   const onTouch = (event) => {
+    if (!event) return;
     event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    
     const pos = getPos(event);
     if (isInside(pos.x, pos.y)) {
       button.setScale(0.95);
       callback();
-      setTimeout(() => button.setScale(1), 100);
+      setTimeout(() => {
+        if (button && button.setScale) {
+          button.setScale(1);
+        }
+      }, 100);
     }
   };
   
-  canvas.addEventListener('touchstart', onTouch, { passive: false });
-  canvas.addEventListener('mousedown', onTouch);
+  // capture: true로 설정하여 다른 이벤트보다 먼저 처리
+  canvas.addEventListener('touchstart', onTouch, { passive: false, capture: true });
+  canvas.addEventListener('mousedown', onTouch, { capture: true });
   
   button.cleanup = () => {
-    canvas.removeEventListener('touchstart', onTouch);
-    canvas.removeEventListener('mousedown', onTouch);
+    canvas.removeEventListener('touchstart', onTouch, { capture: true });
+    canvas.removeEventListener('mousedown', onTouch, { capture: true });
   };
   
   return { button, text: buttonText };
