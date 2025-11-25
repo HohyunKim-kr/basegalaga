@@ -29,6 +29,11 @@ export class GameOver extends Phaser.Scene {
   create() {
     const { width, height } = this.cameras.main;
 
+    // Phaser 입력 시스템 완전 비활성화 (DOM 이벤트만 사용)
+    this.input.enabled = false;
+    if (this.input.mouse) this.input.mouse.enabled = false;
+    if (this.input.touch) this.input.touch.enabled = false;
+
     // Modern gradient background
     createModernBackground(this, width, height);
     

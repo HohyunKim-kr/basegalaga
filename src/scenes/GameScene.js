@@ -4,6 +4,7 @@ import { MODERN_COLORS, createModernTextStyle, createModernPanel, createModernBa
 import { WEAPON_PATTERNS, WEAPON_UPGRADE_ORDER } from '../utils/weaponPatterns.js';
 import { ITEM_TYPES, getRandomItem } from '../utils/items.js';
 import { isMobile } from '../main.js';
+import { TouchControlManager } from '../managers/TouchControlManager.js';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -23,7 +24,6 @@ export class GameScene extends Phaser.Scene {
     this.player = null;
     this.playerHealth = 3;
     this.maxHealth = 3; // Maximum health (can be increased)
-    this.cursors = null;
     this.bullets = null;
     this.enemies = null;
     this.enemyBullets = null;
@@ -99,6 +99,10 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
     this.player.body.setImmovable(true);
+    // Phaser 입력 시스템에서 제외
+    if (this.player.setInteractive) {
+      this.player.setInteractive(false);
+    }
     
     // Player subtle glow
     this.playerGlow = this.add.rectangle(this.player.x, this.player.y, 44, 44, MODERN_COLORS.accentTertiary, 0.2);
@@ -138,23 +142,39 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setDepth(1000);
 
-    // Controls
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    
-    // Mobile touch controls
-    this.touchControls = {
-      left: false,
-      right: false,
-      up: false,
-      down: false,
-      shoot: false,
-      skill: false
-    };
-    
-    if (isMobile) {
-      this.createMobileControls();
+    // Phaser 입력 시스템 완전 비활성화 (DOM 이벤트만 사용)
+    this.input.enabled = false;
+    if (this.input.mouse) this.input.mouse.enabled = false;
+    if (this.input.touch) {
+      this.input.touch.enabled = false;
+      // Phaser의 터치 이벤트 리스너 제거
+      if (this.input.touch.touchStartCallback) {
+        this.input.touch.touchStartCallback = null;
+      }
+      if (this.input.touch.touchMoveCallback) {
+        this.input.touch.touchMoveCallback = null;
+      }
+      if (this.input.touch.touchEndCallback) {
+        this.input.touch.touchEndCallback = null;
+      }
     }
+    if (this.input.keyboard) this.input.keyboard.enabled = false;
+    
+    // Phaser의 입력 업데이트 함수 오버라이드하여 아무것도 하지 않도록
+    if (this.input && this.input.update) {
+      const originalUpdate = this.input.update.bind(this.input);
+      this.input.update = function() {
+        // Phaser 입력 업데이트 비활성화
+        return;
+      };
+    }
+    
+    // Touch controls (모바일 전용 - 키보드 컨트롤 제거)
+    this.touchControlManager = new TouchControlManager(this);
+    this.touchControlManager.createControls();
+    
+    // Get controls reference for easier access
+    this.touchControls = this.touchControlManager.getControls();
 
     // Collisions
     this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, null, this);
@@ -171,26 +191,49 @@ export class GameScene extends Phaser.Scene {
 
   update(time) {
     if (this.gameOver) return;
+    
+    // 터치 컨트롤이 없으면 리턴
+    if (!this.touchControls) {
+      return;
+    }
 
     // Update elapsed time
     this.elapsedTime = time - this.startTime;
     const minutes = Math.floor(this.elapsedTime / 60000);
     const seconds = Math.floor((this.elapsedTime % 60000) / 1000);
+    if (this.timeText) {
     this.timeText.setText(`TIME: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+    }
 
-    // Player movement (4 directions) - keyboard or touch
+    // 플레이어 이동 - 터치 전용 (모바일)
     const moveSpeed = 5;
-    if (this.cursors.left.isDown || this.touchControls.left) {
-      this.player.x -= moveSpeed;
+    
+    // 터치 위치로 직접 이동 (화면 터치)
+    if (this.touchControls.isTouching && this.touchControls.touchX !== null && this.touchControls.touchY !== null) {
+      const dx = this.touchControls.touchX - this.player.x;
+      const dy = this.touchControls.touchY - this.player.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance > 5) { // 목표 지점에 도달할 때까지 이동
+        const moveX = (dx / distance) * moveSpeed;
+        const moveY = (dy / distance) * moveSpeed;
+        this.player.x += moveX;
+        this.player.y += moveY;
+      }
     }
-    if (this.cursors.right.isDown || this.touchControls.right) {
-      this.player.x += moveSpeed;
-    }
-    if (this.cursors.up.isDown || this.touchControls.up) {
-      this.player.y -= moveSpeed;
-    }
-    if (this.cursors.down.isDown || this.touchControls.down) {
-      this.player.y += moveSpeed;
+    
+    // D-Pad 버튼으로 이동
+      if (this.touchControls.left) {
+        this.player.x -= moveSpeed;
+      }
+      if (this.touchControls.right) {
+        this.player.x += moveSpeed;
+      }
+      if (this.touchControls.up) {
+        this.player.y -= moveSpeed;
+      }
+      if (this.touchControls.down) {
+        this.player.y += moveSpeed;
     }
     
     // Keep player in bounds - 더 넓은 공간 활용
@@ -206,16 +249,14 @@ export class GameScene extends Phaser.Scene {
       this.playerGlow.y = this.player.y;
     }
 
-    // Shooting (continuous fire) - keyboard or touch
-    if ((this.spaceKey.isDown || this.touchControls.shoot) && time - this.lastShotTime > (this.fireRate / this.fireRateMultiplier)) {
+    // Shooting (continuous fire) - 터치 전용
+    if (this.touchControls && this.touchControls.shoot && time - this.lastShotTime > (this.fireRate / this.fireRateMultiplier)) {
       this.shoot();
       this.lastShotTime = time;
     }
     
-    // Skill activation - keyboard (X key) or touch
-    const xKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
-    if ((xKey.isDown && !this.skillActive && this.skillCooldown <= 0) || 
-        (this.touchControls.skill && !this.skillActive && this.skillCooldown <= 0)) {
+    // Skill activation - 터치 전용
+    if (this.touchControls && this.touchControls.skill && !this.skillActive && this.skillCooldown <= 0) {
       this.activateSkill();
       this.touchControls.skill = false; // Reset after activation
     }
@@ -628,9 +669,9 @@ export class GameScene extends Phaser.Scene {
         const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, enemy.fillColor);
         this.physics.add.existing(bullet);
         this.enemyBullets.add(bullet);
-        // Predict player movement
-        const predictX = this.player.x + (this.cursors.left.isDown ? -50 : this.cursors.right.isDown ? 50 : 0);
-        const predictY = this.player.y + (this.cursors.up.isDown ? -50 : this.cursors.down.isDown ? 50 : 0);
+        // Predict player movement (터치 컨트롤 기반)
+        const predictX = this.player.x + (this.touchControls?.left ? -50 : this.touchControls?.right ? 50 : 0);
+        const predictY = this.player.y + (this.touchControls?.up ? -50 : this.touchControls?.down ? 50 : 0);
         const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, predictX, predictY);
         bullet.body.setVelocityX(Math.cos(angle) * 120);
         bullet.body.setVelocityY(Math.sin(angle) * 120 + config.enemySpeed * 0.4);
@@ -691,8 +732,8 @@ export class GameScene extends Phaser.Scene {
           const bullet = this.add.rectangle(this.boss.x, this.boss.y + 40, 8, 20, bossConfig.color);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
-          const predictX = this.player.x + (this.cursors.left.isDown ? -80 : this.cursors.right.isDown ? 80 : 0);
-          const predictY = this.player.y + (this.cursors.up.isDown ? -80 : this.cursors.down.isDown ? 80 : 0);
+          const predictX = this.player.x + (this.touchControls?.left ? -80 : this.touchControls?.right ? 80 : 0);
+          const predictY = this.player.y + (this.touchControls?.up ? -80 : this.touchControls?.down ? 80 : 0);
           const angle = Phaser.Math.Angle.Between(this.boss.x, this.boss.y, predictX, predictY);
           const spread = (i - 1.5) * 0.2;
           bullet.body.setVelocityX(Math.cos(angle + spread) * 200);
@@ -774,6 +815,11 @@ export class GameScene extends Phaser.Scene {
     this.itemSelectionActive = true;
     this.physics.pause();
     
+    // 터치 컨트롤 일시 비활성화
+    if (this.touchControlManager) {
+      this.touchControlManager.destroy();
+    }
+    
     const { width, height } = this.cameras.main;
     
     // Generate 3 random items
@@ -793,55 +839,55 @@ export class GameScene extends Phaser.Scene {
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8);
     overlay.setDepth(1000);
     
-    // Selection panel - Modern design (responsive)
-    const panelWidth = isMobile ? width * 0.99 : width * 0.9; // Almost full width on mobile
-    const panelHeight = isMobile ? height * 0.80 : height * 0.6; // Taller on mobile
+    // Selection panel
+    const panelWidth = isMobile ? width * 0.99 : width * 0.9;
+    const panelHeight = isMobile ? height * 0.80 : height * 0.6;
     const panel = createModernPanel(this, width / 2, height / 2, panelWidth, panelHeight, 0.95);
     panel.setStrokeStyle(3, MODERN_COLORS.accentPrimary, 1);
     panel.setDepth(1001);
     
-    // Title - Modern style (responsive position)
+    // Title
     const titleY = isMobile ? height * 0.22 : height * 0.25;
     const title = this.add.text(width / 2, titleY, 'SELECT ITEM', createModernTextStyle(isMobile ? 24 : 40, '#ffffff', '700'))
       .setOrigin(0.5).setDepth(1002);
     
-    // Item buttons - Responsive layout
+    // Item cards
     const itemButtons = [];
+    const cardAreas = [];
     
-    if (isMobile) {
-      // Mobile: Full width layout - cards fill the screen
-      // Minimal margins for maximum space usage
-      const margin = width * 0.02; // 2% margin on each side (minimal)
-      const cardSpacing = width * 0.015; // 1.5% spacing between cards (minimal)
+    const margin = width * 0.02;
+    const cardSpacing = width * 0.015;
       const availableWidth = width - (margin * 2);
-      const totalSpacing = cardSpacing * 2; // 2 gaps between 3 cards
-      const cardWidth = (availableWidth - totalSpacing) / 3; // Equal width for 3 cards
-      const cardHeight = height * 0.38; // 38% of screen height (increased)
-      
-      const centerY = height * 0.52; // Slightly lower for better fit
+    const totalSpacing = cardSpacing * 2;
+    const cardWidth = isMobile ? (availableWidth - totalSpacing) / 3 : Math.min(200, width * 0.18);
+    const cardHeight = isMobile ? height * 0.38 : Math.min(250, height * 0.4);
+    const centerY = isMobile ? height * 0.52 : height / 2;
+    const startX = isMobile ? margin : (width - (cardWidth * 3 + cardSpacing * 2)) / 2;
       
       selectedItems.forEach((itemType, index) => {
-        // Calculate each card's left edge first, then center
-        // Card left edge = margin + index * (cardWidth + spacing)
-        const cardLeft = margin + (index * (cardWidth + cardSpacing));
-        // Card center = left edge + half width
+      const cardLeft = startX + (index * (cardWidth + cardSpacing));
         const x = cardLeft + (cardWidth / 2);
         const y = centerY;
         
-        // Item card - ensure it fits, use exact dimensions
+      // 카드 영역 저장
+      cardAreas.push({
+        left: x - cardWidth / 2,
+        right: x + cardWidth / 2,
+        top: y - cardHeight / 2,
+        bottom: y + cardHeight / 2,
+        itemType: itemType
+      });
+      
+      // 카드 시각적 요소
         const card = this.add.rectangle(x, y, cardWidth, cardHeight, itemType.color, 0.2);
-        card.setStrokeStyle(2, itemType.color, 0.8); // Thinner stroke to prevent overlap
+      card.setStrokeStyle(2, itemType.color, 0.8);
         card.setDepth(1002);
-        // Set interactive - use default hit area
-        card.setInteractive();
         
-        // Item icon - smaller for mobile
-        const iconSize = Math.min(cardWidth * 0.18, 20);
+      const iconSize = isMobile ? Math.min(cardWidth * 0.18, 20) : Math.min(40, cardWidth * 0.2);
         const icon = this.add.circle(x, y - cardHeight * 0.22, iconSize, itemType.color);
-        icon.setStrokeStyle(2, itemType.color, 1); // Thinner stroke
+      icon.setStrokeStyle(2, itemType.color, 1);
         icon.setDepth(1003);
         
-        // Pulsing icon animation
         this.tweens.add({
           targets: icon,
           scale: { from: 0.9, to: 1.1 },
@@ -852,159 +898,65 @@ export class GameScene extends Phaser.Scene {
           ease: 'Sine.easeInOut'
         });
         
-        // Selection number - smaller
-        const numText = this.add.text(x, y - cardHeight * 0.38, `${index + 1}`, createModernTextStyle(16, '#ffffff', '700'))
+      const numText = this.add.text(x, y - cardHeight * 0.38, `${index + 1}`, createModernTextStyle(isMobile ? 16 : 26, '#ffffff', '700'))
           .setOrigin(0.5).setDepth(1003);
         
-        // Item name - compact
-        const nameText = this.add.text(x, y + cardHeight * 0.12, itemType.name, createModernTextStyle(10, `#${itemType.color.toString(16).padStart(6, '0')}`, '600'))
+      const nameText = this.add.text(x, y + cardHeight * 0.12, itemType.name, createModernTextStyle(isMobile ? 10 : 18, `#${itemType.color.toString(16).padStart(6, '0')}`, '600'))
           .setOrigin(0.5).setDepth(1003)
           .setWordWrapWidth(cardWidth * 0.85);
         
-        // Item description - very compact
         const description = itemType.description || 'UPGRADE';
-        const descText = this.add.text(x, y + cardHeight * 0.32, description, createModernTextStyle(8, '#ffffff', '400'))
+      const descText = this.add.text(x, y + cardHeight * 0.32, description, createModernTextStyle(isMobile ? 8 : 12, '#ffffff', '400'))
           .setOrigin(0.5).setDepth(1003)
           .setAlign('center')
           .setWordWrapWidth(cardWidth * 0.8);
         
-        // Click handler
-        card.on('pointerdown', () => {
-          this.selectItem(itemType);
-        });
-        
-        // Touch feedback - keep stroke same size to prevent visual overlap
-        card.on('pointerover', () => {
-          card.setFillStyle(itemType.color, 0.4);
-          card.setStrokeStyle(2, itemType.color, 1); // Keep same stroke width
-          icon.setScale(1.15); // Smaller scale to prevent overlap
-        });
-        
-        card.on('pointerout', () => {
-          card.setFillStyle(itemType.color, 0.2);
-          card.setStrokeStyle(2, itemType.color, 0.8); // Keep same stroke width
-          icon.setScale(1);
-        });
-        
-        itemButtons.push({
-          card,
-          icon,
-          nameText,
-          descText,
-          numText,
-          itemType
-        });
-      });
+      itemButtons.push({ card, icon, nameText, descText, numText, itemType });
+    });
+    
+    // DOM 터치 이벤트로 카드 선택 처리
+    const canvas = this.game.canvas;
+    const self = this;
+    
+    const getPos = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      
+      let clientX, clientY;
+      if (event.touches && event.touches.length > 0) {
+        clientX = event.touches[0].clientX;
+        clientY = event.touches[0].clientY;
     } else {
-      // Desktop: Responsive horizontal layout - centered
-      // Calculate to ensure cards don't overlap and are centered
-      const cardWidth = Math.min(200, width * 0.18); // Max 200px or 18% of width
-      const cardHeight = Math.min(250, height * 0.4); // Max 250px or 40% of height
-      const cardSpacing = Math.max(20, width * 0.03); // At least 20px or 3% of width
+        clientX = event.clientX;
+        clientY = event.clientY;
+      }
       
-      // Calculate total width needed for 3 cards + 2 gaps
-      const totalCardsWidth = (cardWidth * 3) + (cardSpacing * 2);
-      // Center the entire group
-      const startX = (width - totalCardsWidth) / 2;
-      
-      const centerY = height / 2;
-      
-      selectedItems.forEach((itemType, index) => {
-        // Calculate each card's left edge first, then center
-        const cardLeft = startX + (index * (cardWidth + cardSpacing));
-        const x = cardLeft + (cardWidth / 2);
-        const y = centerY;
-        
-        // Item card - use exact dimensions
-        const card = this.add.rectangle(x, y, cardWidth, cardHeight, itemType.color, 0.2);
-        card.setStrokeStyle(2, itemType.color, 0.8); // Thinner stroke
-        card.setDepth(1002);
-        // Set interactive - use default hit area
-        card.setInteractive();
-        
-        // Item icon - responsive size
-        const iconSize = Math.min(40, cardWidth * 0.2);
-        const icon = this.add.circle(x, y - cardHeight * 0.16, iconSize, itemType.color);
-        icon.setStrokeStyle(2, itemType.color, 1);
-        icon.setDepth(1003);
-        
-        // Pulsing icon animation
-        this.tweens.add({
-          targets: icon,
-          scale: { from: 0.9, to: 1.1 },
-          alpha: { from: 0.7, to: 1 },
-          duration: 1000,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut'
-        });
-        
-        // Selection number
-        const numText = this.add.text(x, y - cardHeight * 0.4, `${index + 1}`, createModernTextStyle(Math.min(26, cardWidth / 8), '#ffffff', '700'))
-          .setOrigin(0.5).setDepth(1003);
-        
-        // Item name
-        const nameText = this.add.text(x, y + cardHeight * 0.08, itemType.name, createModernTextStyle(Math.min(18, cardWidth / 11), `#${itemType.color.toString(16).padStart(6, '0')}`, '600'))
-          .setOrigin(0.5).setDepth(1003)
-          .setWordWrapWidth(cardWidth * 0.85);
-        
-        // Item description
-        const description = itemType.description || 'UPGRADE';
-        const descText = this.add.text(x, y + cardHeight * 0.24, description, createModernTextStyle(Math.min(12, cardWidth / 16), '#ffffff', '400'))
-          .setOrigin(0.5).setDepth(1003)
-          .setAlign('center')
-          .setWordWrapWidth(cardWidth * 0.8);
-        
-        // Click handler
-        card.on('pointerdown', () => {
-          this.selectItem(itemType);
-        });
-        
-        // Hover effect - keep stroke same size to prevent visual overlap
-        card.on('pointerover', () => {
-          card.setFillStyle(itemType.color, 0.4);
-          card.setStrokeStyle(2, itemType.color, 1); // Keep same stroke width
-          icon.setScale(1.15); // Smaller scale to prevent overlap
-        });
-        
-        card.on('pointerout', () => {
-          card.setFillStyle(itemType.color, 0.2);
-          card.setStrokeStyle(2, itemType.color, 0.8); // Keep same stroke width
-          icon.setScale(1);
-        });
-        
-        itemButtons.push({
-          card,
-          icon,
-          nameText,
-          descText,
-          numText,
-          itemType
-        });
-      });
-    }
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
+    };
     
-    // Instructions - Modern style (responsive position)
+    const onItemTouch = (event) => {
+      event.preventDefault();
+      const pos = getPos(event);
+      for (const area of cardAreas) {
+        if (pos.x >= area.left && pos.x <= area.right &&
+            pos.y >= area.top && pos.y <= area.bottom) {
+          self.selectItem(area.itemType);
+          break;
+        }
+      }
+    };
+    
+    canvas.addEventListener('touchstart', onItemTouch, { passive: false });
+    canvas.addEventListener('mousedown', onItemTouch);
+    
+    // Instructions
     const instructionY = isMobile ? height * 0.88 : height * 0.75;
-    const instructionText = this.add.text(width / 2, instructionY, isMobile ? 'Tap to select' : 'Click to select | [1] [2] [3] keys', createModernTextStyle(isMobile ? 12 : 16, '#ffffff', '500'))
+    const instructionText = this.add.text(width / 2, instructionY, 'Tap to select', createModernTextStyle(isMobile ? 12 : 16, '#ffffff', '500'))
       .setOrigin(0.5).setDepth(1003);
-    
-    // Keyboard selection
-    const key1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
-    const key2 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO);
-    const key3 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE);
-    
-    key1.on('down', () => {
-      if (selectedItems[0]) this.selectItem(selectedItems[0]);
-    });
-    
-    key2.on('down', () => {
-      if (selectedItems[1]) this.selectItem(selectedItems[1]);
-    });
-    
-    key3.on('down', () => {
-      if (selectedItems[2]) this.selectItem(selectedItems[2]);
-    });
     
     this.itemSelectionUI = {
       overlay,
@@ -1013,7 +965,7 @@ export class GameScene extends Phaser.Scene {
       instructionText,
       itemButtons,
       selectedItems,
-      keys: [key1, key2, key3]
+      onItemTouch // 이벤트 핸들러 저장
     };
   }
 
@@ -1057,6 +1009,18 @@ export class GameScene extends Phaser.Scene {
       
       this.itemSelectionUI = null;
     }
+    
+    // DOM 이벤트 리스너 제거
+    const canvas = this.game.canvas;
+    if (this.itemSelectionUI && this.itemSelectionUI.onItemTouch) {
+      canvas.removeEventListener('touchstart', this.itemSelectionUI.onItemTouch);
+      canvas.removeEventListener('mousedown', this.itemSelectionUI.onItemTouch);
+    }
+    
+    // TouchControlManager 재설정
+    this.touchControlManager = new TouchControlManager(this);
+    this.touchControlManager.createControls();
+    this.touchControls = this.touchControlManager.getControls();
     
     this.itemSelectionActive = false;
     this.physics.resume();
@@ -1524,158 +1488,6 @@ export class GameScene extends Phaser.Scene {
     bottomPanel.setDepth(100);
   }
 
-
-  createMobileControls() {
-    const { width, height } = this.cameras.main;
-    this.mobileControls = {};
-
-    // Control button size and spacing (optimized for mobile)
-    const buttonSize = isMobile ? 55 : 50;
-    const buttonSpacing = isMobile ? 65 : 60;
-    const controlAlpha = 0.85;
-    const controlColor = MODERN_COLORS.accentPrimary;
-
-    // D-Pad (left side, bottom - fixed position)
-    const dpadX = buttonSize + 15;
-    const dpadY = height - buttonSize - 15;
-    
-    // Up button
-    const upBtn = this.add.rectangle(dpadX, dpadY - buttonSpacing, buttonSize, buttonSize, controlColor, controlAlpha);
-    upBtn.setStrokeStyle(2, controlColor, 1);
-    upBtn.setInteractive();
-    upBtn.setDepth(1000);
-    const upText = this.add.text(dpadX, dpadY - buttonSpacing, '↑', createModernTextStyle(24, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(1001);
-    upText.setInteractive(false); // Make text non-interactive
-    
-    upBtn.on('pointerdown', () => { this.touchControls.up = true; });
-    upBtn.on('pointerup', () => { this.touchControls.up = false; });
-    upBtn.on('pointerout', () => { this.touchControls.up = false; });
-
-    // Down button
-    const downBtn = this.add.rectangle(dpadX, dpadY + buttonSpacing, buttonSize, buttonSize, controlColor, controlAlpha);
-    downBtn.setStrokeStyle(2, controlColor, 1);
-    downBtn.setInteractive();
-    downBtn.setDepth(1000);
-    const downText = this.add.text(dpadX, dpadY + buttonSpacing, '↓', createModernTextStyle(24, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(1001);
-    downText.setInteractive(false); // Make text non-interactive
-    
-    downBtn.on('pointerdown', () => { this.touchControls.down = true; });
-    downBtn.on('pointerup', () => { this.touchControls.down = false; });
-    downBtn.on('pointerout', () => { this.touchControls.down = false; });
-
-    // Left button
-    const leftBtn = this.add.rectangle(dpadX - buttonSpacing, dpadY, buttonSize, buttonSize, controlColor, controlAlpha);
-    leftBtn.setStrokeStyle(2, controlColor, 1);
-    leftBtn.setInteractive();
-    leftBtn.setDepth(1000);
-    const leftText = this.add.text(dpadX - buttonSpacing, dpadY, '←', createModernTextStyle(24, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(1001);
-    leftText.setInteractive(false); // Make text non-interactive
-    
-    leftBtn.on('pointerdown', () => { this.touchControls.left = true; });
-    leftBtn.on('pointerup', () => { this.touchControls.left = false; });
-    leftBtn.on('pointerout', () => { this.touchControls.left = false; });
-
-    // Right button
-    const rightBtn = this.add.rectangle(dpadX + buttonSpacing, dpadY, buttonSize, buttonSize, controlColor, controlAlpha);
-    rightBtn.setStrokeStyle(2, controlColor, 1);
-    rightBtn.setInteractive();
-    rightBtn.setDepth(1000);
-    const rightText = this.add.text(dpadX + buttonSpacing, dpadY, '→', createModernTextStyle(24, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(1001);
-    rightText.setInteractive(false); // Make text non-interactive
-    
-    rightBtn.on('pointerdown', () => { this.touchControls.right = true; });
-    rightBtn.on('pointerup', () => { this.touchControls.right = false; });
-    rightBtn.on('pointerout', () => { this.touchControls.right = false; });
-
-    // Fire button (right side, bottom - fixed position)
-    const fireBtnSize = isMobile ? 75 : 70;
-    const fireBtnX = width - fireBtnSize - 15;
-    const fireBtnY = height - fireBtnSize - 15;
-    const fireBtn = this.add.circle(fireBtnX, fireBtnY, fireBtnSize / 2, MODERN_COLORS.accentWarning, controlAlpha);
-    fireBtn.setStrokeStyle(3, MODERN_COLORS.accentWarning, 1);
-    fireBtn.setInteractive();
-    fireBtn.setDepth(1000);
-    const fireText = this.add.text(fireBtnX, fireBtnY, 'FIRE', createModernTextStyle(16, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(1001);
-    fireText.setInteractive(false); // Make text non-interactive
-    
-    fireBtn.on('pointerdown', () => { this.touchControls.shoot = true; });
-    fireBtn.on('pointerup', () => { this.touchControls.shoot = false; });
-    fireBtn.on('pointerout', () => { this.touchControls.shoot = false; });
-
-    // Store references for cleanup
-    this.mobileControls = {
-      up: upBtn,
-      down: downBtn,
-      left: leftBtn,
-      right: rightBtn,
-      fire: fireBtn
-    };
-
-    // Add pulsing animation to fire button
-    this.tweens.add({
-      targets: fireBtn,
-      scale: { from: 0.95, to: 1.05 },
-      alpha: { from: 0.6, to: 0.8 },
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
-    // Skill button (above fire button - fixed position)
-    const skillBtnSize = isMobile ? 65 : 60;
-    const skillBtnX = width - skillBtnSize - 15;
-    const skillBtnY = height - fireBtnSize - skillBtnSize - 25;
-    const skillBtn = this.add.circle(skillBtnX, skillBtnY, skillBtnSize / 2, MODERN_COLORS.accentSecondary, controlAlpha);
-    skillBtn.setStrokeStyle(3, MODERN_COLORS.accentSecondary, 1);
-    skillBtn.setInteractive();
-    skillBtn.setDepth(1000);
-    
-    // Skill button text
-    const skillText = this.add.text(skillBtnX, skillBtnY, 'SKILL', createModernTextStyle(12, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(1001);
-    skillText.setInteractive(false); // Make text non-interactive
-    
-    // Cooldown indicator
-    const cooldownCircle = this.add.circle(skillBtnX, skillBtnY, skillBtnSize / 2, 0x000000, 0.5);
-    cooldownCircle.setDepth(1002);
-    cooldownCircle.setVisible(false);
-    this.skillCooldownIndicator = cooldownCircle;
-    this.skillButton = skillBtn;
-    this.skillButtonText = skillText;
-    
-    skillBtn.on('pointerdown', () => { 
-      if (!this.skillActive && this.skillCooldown <= 0) {
-        this.touchControls.skill = true;
-      }
-    });
-    skillBtn.on('pointerup', () => { 
-      this.touchControls.skill = false;
-    });
-    skillBtn.on('pointerout', () => { 
-      this.touchControls.skill = false;
-    });
-
-    // Store skill button reference
-    this.mobileControls.skill = skillBtn;
-    
-    // Add pulsing animation to skill button when ready
-    this.skillPulseTween = this.tweens.add({
-      targets: skillBtn,
-      scale: { from: 0.95, to: 1.05 },
-      alpha: { from: 0.6, to: 0.8 },
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-      paused: true
-    });
-  }
   
   activateSkill() {
     if (this.skillActive || this.skillCooldown > 0) return;

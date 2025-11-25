@@ -10,6 +10,11 @@ export class MainMenu extends Phaser.Scene {
   create() {
     const { width, height } = this.cameras.main;
 
+    // Phaser 입력 시스템 완전 비활성화 (DOM 이벤트만 사용)
+    this.input.enabled = false;
+    if (this.input.mouse) this.input.mouse.enabled = false;
+    if (this.input.touch) this.input.touch.enabled = false;
+
     // Modern gradient background
     createModernBackground(this, width, height);
     
@@ -69,7 +74,7 @@ export class MainMenu extends Phaser.Scene {
     );
 
     // Instructions
-    const instructionText = isMobile ? 'Tap to play' : 'Arrow Keys: Move | Space: Shoot';
+    const instructionText = 'Tap buttons to play';
     this.add.text(width / 2, height * 0.80, instructionText, createModernTextStyle(isMobile ? 12 : 14, '#ffffff', '400'))
       .setOrigin(0.5);
 

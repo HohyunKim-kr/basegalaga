@@ -59,13 +59,11 @@ export function createCyberpunkTextStyle(size, color = CYBERPUNK_COLORS.textPrim
 }
 
 /**
- * Create cyberpunk button with glow effect
+ * Create cyberpunk button with glow effect - DOM 터치 이벤트 사용
  */
 export function createCyberpunkButton(scene, x, y, width, height, color, text, callback) {
   // Button background with glow
-  const button = scene.add.rectangle(x, y, width, height, color)
-    .setInteractive({ useHandCursor: true })
-    .on('pointerdown', callback);
+  const button = scene.add.rectangle(x, y, width, height, color);
   
   // Glow effect
   const glow = scene.add.rectangle(x, y, width + 4, height + 4, color, 0.3);
@@ -75,18 +73,56 @@ export function createCyberpunkButton(scene, x, y, width, height, color, text, c
   const buttonText = scene.add.text(x, y, text, createCyberpunkTextStyle(20, '#000000'))
     .setOrigin(0.5);
   
-  // Hover effects
-  button.on('pointerover', () => {
-    button.setFillStyle(CYBERPUNK_COLORS.buttonHover);
-    glow.setFillStyle(CYBERPUNK_COLORS.buttonHover, 0.5);
-    glow.setSize(width + 8, height + 8);
-  });
+  // DOM 터치 이벤트
+  const canvas = scene.game.canvas;
+  const bounds = {
+    left: x - width / 2,
+    right: x + width / 2,
+    top: y - height / 2,
+    bottom: y + height / 2
+  };
   
-  button.on('pointerout', () => {
-    button.setFillStyle(color);
-    glow.setFillStyle(color, 0.3);
-    glow.setSize(width + 4, height + 4);
-  });
+  const getPos = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    let clientX, clientY;
+    if (event.touches && event.touches.length > 0) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+    
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
+    };
+  };
+  
+  const isInside = (px, py) => {
+    return px >= bounds.left && px <= bounds.right && py >= bounds.top && py <= bounds.bottom;
+  };
+  
+  const onTouch = (event) => {
+    event.preventDefault();
+    const pos = getPos(event);
+    if (isInside(pos.x, pos.y)) {
+      button.setFillStyle(CYBERPUNK_COLORS.buttonHover);
+      callback();
+      setTimeout(() => button.setFillStyle(color), 100);
+    }
+  };
+  
+  canvas.addEventListener('touchstart', onTouch, { passive: false });
+  canvas.addEventListener('mousedown', onTouch);
+  
+  button.cleanup = () => {
+    canvas.removeEventListener('touchstart', onTouch);
+    canvas.removeEventListener('mousedown', onTouch);
+  };
   
   return { button, glow, text: buttonText };
 }
@@ -106,4 +142,3 @@ export function createScanlines(scene, width, height) {
   
   return scanlineGroup;
 }
-

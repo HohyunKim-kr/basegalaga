@@ -1,37 +1,27 @@
 /**
- * Modern, clean design system
- * Replaces cyberpunk with a sleek, modern aesthetic
+ * Modern, clean design system - 모바일 최적화
  */
 
 export const MODERN_COLORS = {
-  // Background - Dark gradient
   bgPrimary: 0x0f0f23,
   bgSecondary: 0x1a1a2e,
   bgTertiary: 0x16213e,
   bgGradient: [0x0f0f23, 0x1a1a2e, 0x16213e],
-  
-  // Accent colors - Modern blue/purple palette
-  accentPrimary: 0x4a90e2,      // Soft blue
-  accentSecondary: 0x7b68ee,     // Soft purple
-  accentTertiary: 0x50c878,      // Soft green
-  accentWarning: 0xff6b6b,       // Soft red
-  accentSuccess: 0x51cf66,       // Bright green
-  accentInfo: 0x74b9ff,          // Light blue
-  
-  // Text colors - all white/bright for maximum visibility
+  accentPrimary: 0x4a90e2,
+  accentSecondary: 0x7b68ee,
+  accentTertiary: 0x50c878,
+  accentWarning: 0xff6b6b,
+  accentSuccess: 0x51cf66,
+  accentInfo: 0x74b9ff,
   textPrimary: '#ffffff',
   textSecondary: '#ffffff',
   textAccent: '#ffffff',
   textWarning: '#ffffff',
   textSuccess: '#ffffff',
   textMuted: '#ffffff',
-  
-  // UI elements
   uiPanel: 0x1a1a2e,
   uiBorder: 0x2d2d44,
   uiHover: 0x2d2d44,
-  
-  // Button colors
   buttonPrimary: 0x4a90e2,
   buttonSecondary: 0x7b68ee,
   buttonSuccess: 0x51cf66,
@@ -44,9 +34,6 @@ export const MODERN_FONT = {
   style: 'normal'
 };
 
-/**
- * Create modern text style with better readability - pure white text, bold and clear
- */
 export function createModernTextStyle(size, color = '#ffffff', weight = '700') {
   return {
     fontSize: `${size}px`,
@@ -67,74 +54,84 @@ export function createModernTextStyle(size, color = '#ffffff', weight = '700') {
 }
 
 /**
- * Create modern button with smooth design
+ * 모던 버튼 - DOM 터치 이벤트 사용
  */
 export function createModernButton(scene, x, y, width, height, color, text, callback) {
-  // Button background with rounded corners effect
-  const button = scene.add.rectangle(x, y, width, height, color, 0.9)
-    .setInteractive({ useHandCursor: true })
-    .setStrokeStyle(2, color, 1);
+  const button = scene.add.rectangle(x, y, width, height, color, 0.9);
+  button.setStrokeStyle(2, color, 1);
+  button.setDepth(100);
   
-  // Button text
   const buttonText = scene.add.text(x, y, text, createModernTextStyle(Math.min(width / 8, 18), '#ffffff', '600'))
-    .setOrigin(0.5);
+    .setOrigin(0.5)
+    .setDepth(101);
   
-  // Hover effects
-  button.on('pointerdown', () => {
-    button.setScale(0.95);
-    callback();
-  });
+  // 버튼 영역 정의
+  const bounds = {
+    left: x - width / 2,
+    right: x + width / 2,
+    top: y - height / 2,
+    bottom: y + height / 2
+  };
   
-  button.on('pointerup', () => {
-    button.setScale(1);
-  });
+  // DOM 터치 이벤트
+  const canvas = scene.game.canvas;
   
-  button.on('pointerover', () => {
-    button.setFillStyle(MODERN_COLORS.buttonHover, 1);
-    button.setStrokeStyle(2, MODERN_COLORS.buttonHover, 1);
-    scene.tweens.add({
-      targets: button,
-      scaleX: 1.02,
-      scaleY: 1.02,
-      duration: 150,
-      ease: 'Power2'
-    });
-  });
+  const getPos = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    let clientX, clientY;
+    if (event.touches && event.touches.length > 0) {
+      clientX = event.touches[0].clientX;
+      clientY = event.touches[0].clientY;
+    } else {
+      clientX = event.clientX;
+      clientY = event.clientY;
+    }
+    
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
+    };
+  };
   
-  button.on('pointerout', () => {
-    button.setFillStyle(color, 0.9);
-    button.setStrokeStyle(2, color, 1);
-    scene.tweens.add({
-      targets: button,
-      scaleX: 1,
-      scaleY: 1,
-      duration: 150,
-      ease: 'Power2'
-    });
-  });
+  const isInside = (px, py) => {
+    return px >= bounds.left && px <= bounds.right && py >= bounds.top && py <= bounds.bottom;
+  };
+  
+  const onTouch = (event) => {
+    event.preventDefault();
+    const pos = getPos(event);
+    if (isInside(pos.x, pos.y)) {
+      button.setScale(0.95);
+      callback();
+      setTimeout(() => button.setScale(1), 100);
+    }
+  };
+  
+  canvas.addEventListener('touchstart', onTouch, { passive: false });
+  canvas.addEventListener('mousedown', onTouch);
+  
+  button.cleanup = () => {
+    canvas.removeEventListener('touchstart', onTouch);
+    canvas.removeEventListener('mousedown', onTouch);
+  };
   
   return { button, text: buttonText };
 }
 
-/**
- * Create modern panel/container
- */
 export function createModernPanel(scene, x, y, width, height, alpha = 0.85) {
   const panel = scene.add.rectangle(x, y, width, height, MODERN_COLORS.uiPanel, alpha);
   panel.setStrokeStyle(1, MODERN_COLORS.uiBorder, 0.5);
   return panel;
 }
 
-/**
- * Create subtle gradient background (behind everything)
- */
 export function createModernBackground(scene, width, height) {
-  // Create gradient effect with multiple rectangles
   const gradient1 = scene.add.rectangle(width / 2, 0, width, height / 3, MODERN_COLORS.bgPrimary);
   const gradient2 = scene.add.rectangle(width / 2, height / 3, width, height / 3, MODERN_COLORS.bgSecondary);
   const gradient3 = scene.add.rectangle(width / 2, (height / 3) * 2, width, height / 3, MODERN_COLORS.bgTertiary);
   
-  // Set depth to be behind everything
   gradient1.setDepth(-20);
   gradient2.setDepth(-20);
   gradient3.setDepth(-20);
@@ -142,23 +139,18 @@ export function createModernBackground(scene, width, height) {
   return [gradient1, gradient2, gradient3];
 }
 
-/**
- * Create subtle grid overlay (behind everything)
- */
 export function createModernGrid(scene, width, height) {
   const gridGroup = scene.add.group();
   const gridColor = MODERN_COLORS.accentPrimary;
   const gridAlpha = 0.03;
   const spacing = 50;
 
-  // Vertical lines
   for (let x = 0; x < width; x += spacing) {
     const line = scene.add.line(x, height / 2, 0, -height / 2, 0, height / 2, gridColor, gridAlpha);
     line.setDepth(-10);
     gridGroup.add(line);
   }
 
-  // Horizontal lines
   for (let y = 0; y < height; y += spacing) {
     const line = scene.add.line(width / 2, y, -width / 2, 0, width / 2, 0, gridColor, gridAlpha);
     line.setDepth(-10);
@@ -167,4 +159,3 @@ export function createModernGrid(scene, width, height) {
   
   return gridGroup;
 }
-
