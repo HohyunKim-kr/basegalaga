@@ -136,10 +136,10 @@ if (typeof window !== 'undefined') {
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
                  (window.innerWidth <= 768 && 'ontouchstart' in window);
 
-// Fixed resolution for consistent gameplay
-// Use portrait mode for mobile, landscape for desktop
-const BASE_WIDTH = isMobile ? 375 : 800;
-const BASE_HEIGHT = isMobile ? 667 : 600;
+// Fully responsive - use actual viewport dimensions
+// This ensures the game fills the entire screen on any device
+const BASE_WIDTH = window.innerWidth || (isMobile ? 375 : 800);
+const BASE_HEIGHT = window.innerHeight || (isMobile ? 667 : 600);
 
 // Phaser Game Configuration
 const config = {
@@ -156,10 +156,12 @@ const config = {
   },
   scene: [MainMenu, GameScene, GameOver, Leaderboard],
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: Phaser.Scale.RESIZE, // Fully responsive - resizes with window
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: BASE_WIDTH,
-    height: BASE_HEIGHT
+    height: BASE_HEIGHT,
+    // Handle window resize
+    resizeInterval: 100
   },
   input: {
     activePointers: 3 // Support multiple touch points

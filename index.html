@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Base Galaga - MiniApp Game</title>
   <meta name="fc:miniapp" content='{"version":"next","imageUrl":"https://basegalaga.vercel.app/og-image.png","button":{"title":"Play Now","action":{"type":"launch_miniapp","name":"Base Galaga","url":"https://basegalaga.vercel.app"}}}' />
   <style>
@@ -13,28 +13,10 @@
     }
     body {
       overflow: hidden;
-      background: linear-gradient(180deg, #0a0a0a 0%, #1a0033 50%, #000033 100%);
-      font-family: 'Courier New', monospace;
+      background: linear-gradient(180deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       margin: 0;
       padding: 0;
-    }
-    
-    /* Cyberpunk scanline effect */
-    body::before {
-      content: '';
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: repeating-linear-gradient(
-        0deg,
-        rgba(0, 255, 255, 0.03) 0px,
-        transparent 2px,
-        transparent 4px
-      );
-      pointer-events: none;
-      z-index: 9999;
     }
     #game-container {
       width: 100vw;

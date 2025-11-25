@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { scoreManager } from '../utils/score.js';
-import { CYBERPUNK_COLORS, createCyberpunkTextStyle, createCyberpunkButton, createScanlines } from '../utils/cyberpunkStyle.js';
+import { MODERN_COLORS, createModernTextStyle, createModernButton, createModernBackground, createModernGrid } from '../utils/modernStyle.js';
+import { isMobile } from '../main.js';
 
 export class GameOver extends Phaser.Scene {
   constructor() {
@@ -28,189 +29,130 @@ export class GameOver extends Phaser.Scene {
   create() {
     const { width, height } = this.cameras.main;
 
-    // Cyberpunk gradient background
-    const bg1 = this.add.rectangle(width / 2, 0, width, height / 3, CYBERPUNK_COLORS.bgDark);
-    const bg2 = this.add.rectangle(width / 2, height / 3, width, height / 3, CYBERPUNK_COLORS.bgPurple);
-    const bg3 = this.add.rectangle(width / 2, (height / 3) * 2, width, height / 3, CYBERPUNK_COLORS.bgBlue);
+    // Modern gradient background
+    createModernBackground(this, width, height);
     
-    // Scanline effect
-    createScanlines(this, width, height);
-    
-    // Grid overlay
-    this.createGridOverlay(width, height);
+    // Subtle grid overlay
+    createModernGrid(this, width, height);
 
-    // Game Over or All Cleared Text
+    // Game Over or All Cleared Text - Modern design
     if (this.allCleared) {
-      const title = this.add.text(width / 2, height * 0.12, '> ALL STAGES CLEARED <', {
-        fontSize: '42px',
-        fontFamily: 'Courier New',
-        fontStyle: 'bold',
-        color: CYBERPUNK_COLORS.textAccent,
-        stroke: '#000000',
-        strokeThickness: 4,
-        shadow: {
-          offsetX: 0,
-          offsetY: 0,
-          color: CYBERPUNK_COLORS.textAccent,
-          blur: 3,
-          stroke: true,
-          fill: true
-        }
-      }).setOrigin(0.5);
+      const titleSize = isMobile ? 40 : 56;
+      const title = this.add.text(width / 2, height * 0.10, 'ALL STAGES CLEARED', createModernTextStyle(titleSize, '#ffffff', '700'))
+        .setOrigin(0.5);
       
-      // Animated glow
       this.tweens.add({
         targets: title,
-        alpha: { from: 0.7, to: 1 },
-        duration: 800,
+        alpha: { from: 0.8, to: 1 },
+        duration: 1500,
         yoyo: true,
         repeat: -1
       });
     } else {
-      const title = this.add.text(width / 2, height * 0.12, '> GAME OVER <', {
-        fontSize: '56px',
-        fontFamily: 'Courier New',
-        fontStyle: 'bold',
-        color: CYBERPUNK_COLORS.textWarning,
-        stroke: '#000000',
-        strokeThickness: 4,
-        shadow: {
-          offsetX: 0,
-          offsetY: 0,
-          color: CYBERPUNK_COLORS.textWarning,
-          blur: 3,
-          stroke: true,
-          fill: true
-        }
-      }).setOrigin(0.5);
+      const titleSize = isMobile ? 52 : 72;
+      const title = this.add.text(width / 2, height * 0.10, 'GAME OVER', createModernTextStyle(titleSize, '#ffffff', '700'))
+        .setOrigin(0.5);
       
-      // Animated glow
       this.tweens.add({
         targets: title,
-        alpha: { from: 0.7, to: 1 },
-        duration: 600,
+        alpha: { from: 0.8, to: 1 },
+        duration: 1000,
         yoyo: true,
         repeat: -1
       });
     }
 
-    // Stage reached
-    this.add.text(width / 2, height * 0.22, `> STAGE REACHED: ${this.stage}/10 <`, createCyberpunkTextStyle(22, CYBERPUNK_COLORS.textPrimary))
+    // Stats - Modern, clean layout
+    const statsY = isMobile ? height * 0.20 : height * 0.22;
+    const statsSpacing = isMobile ? 24 : 32;
+    
+    this.add.text(width / 2, statsY, `STAGE: ${this.stage}/10`, createModernTextStyle(isMobile ? 18 : 24, '#ffffff', '600'))
       .setOrigin(0.5);
 
-    // Time display
     const minutes = Math.floor(this.elapsedTime / 60000);
     const seconds = Math.floor((this.elapsedTime % 60000) / 1000);
-    this.add.text(width / 2, height * 0.28, `> TIME: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} <`, createCyberpunkTextStyle(18, '#888888'))
+    this.add.text(width / 2, statsY + statsSpacing, `TIME: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`, createModernTextStyle(isMobile ? 18 : 24, '#ffffff', '500'))
       .setOrigin(0.5);
 
-    // Score Display
-    this.add.text(width / 2, height * 0.36, `> FINAL SCORE: ${this.finalScore.toLocaleString()} <`, {
-      fontSize: '36px',
-      fontFamily: 'Courier New',
-      fontStyle: 'bold',
-      color: CYBERPUNK_COLORS.textPrimary,
-      stroke: '#000000',
-      strokeThickness: 3,
-      shadow: {
-        offsetX: 0,
-        offsetY: 0,
-        color: CYBERPUNK_COLORS.textPrimary,
-        blur: 3,
-        stroke: true,
-        fill: true
-      }
-    }).setOrigin(0.5);
+    // Score Display - Modern, prominent
+    this.add.text(width / 2, statsY + statsSpacing * 2, `SCORE: ${this.finalScore.toLocaleString()}`, createModernTextStyle(isMobile ? 36 : 48, '#ffffff', '700'))
+      .setOrigin(0.5);
 
     if (this.baseScore !== this.finalScore) {
-      this.add.text(width / 2, height * 0.43, `> BASE: ${this.baseScore.toLocaleString()} + TIME BONUS <`, createCyberpunkTextStyle(16, CYBERPUNK_COLORS.textSuccess))
+      this.add.text(width / 2, statsY + statsSpacing * 3, `BASE: ${this.baseScore.toLocaleString()} + BONUS`, createModernTextStyle(isMobile ? 14 : 18, '#ffffff', '500'))
         .setOrigin(0.5);
-    }
-
-    if (this.bestScore > 0) {
-      this.add.text(width / 2, height * 0.42, `Best Score: ${this.bestScore}`, {
-        fontSize: '24px',
-        fontFamily: 'Arial',
-        color: '#00ff00'
-      }).setOrigin(0.5);
     }
 
     // New Record indicator
     if (this.finalScore === this.bestScore && this.finalScore > 0) {
-      const recordText = this.add.text(width / 2, height * 0.50, '> NEW RECORD! <', {
-        fontSize: '32px',
-        fontFamily: 'Courier New',
-        fontStyle: 'bold',
-        color: CYBERPUNK_COLORS.textAccent,
-        stroke: '#000000',
-        strokeThickness: 3,
-        shadow: {
-          offsetX: 0,
-          offsetY: 0,
-          color: CYBERPUNK_COLORS.textAccent,
-          blur: 3,
-          stroke: true,
-          fill: true
-        }
-      }).setOrigin(0.5);
+      const recordText = this.add.text(width / 2, statsY + statsSpacing * 4, 'NEW RECORD!', createModernTextStyle(isMobile ? 24 : 32, '#ffffff', '700'))
+        .setOrigin(0.5);
       
       this.tweens.add({
         targets: recordText,
-        scale: { from: 1, to: 1.1 },
-        duration: 500,
+        scale: { from: 1, to: 1.05 },
+        duration: 800,
         yoyo: true,
         repeat: -1
       });
     }
 
-    // Buttons with cyberpunk style
-    const retryBtn = createCyberpunkButton(
+    // Buttons - Modern design
+    const btnWidth = isMobile ? width * 0.85 : Math.min(width * 0.5, 320);
+    const btnHeight = isMobile ? 56 : 64;
+    const btnSpacing = isMobile ? 52 : 60;
+    let btnY = isMobile ? height * 0.52 : height * 0.54;
+    
+    const retryBtn = createModernButton(
       this,
       width / 2,
-      height * 0.60,
-      240,
-      60,
-      CYBERPUNK_COLORS.neonGreen,
-      '> RETRY',
+      btnY,
+      btnWidth,
+      btnHeight,
+      MODERN_COLORS.buttonSuccess,
+      'RETRY',
       () => {
         this.scene.start('GameScene');
       }
     );
 
-    const shareBtn = createCyberpunkButton(
+    btnY += btnSpacing;
+    const shareBtn = createModernButton(
       this,
       width / 2,
-      height * 0.70,
-      240,
-      60,
-      CYBERPUNK_COLORS.neonCyan,
-      '> SHARE TO FARCASTER',
+      btnY,
+      btnWidth,
+      btnHeight,
+      MODERN_COLORS.buttonPrimary,
+      'SHARE TO FARCASTER',
       async () => {
         await this.shareToFarcaster();
       }
     );
 
-    const leaderboardBtn = createCyberpunkButton(
+    btnY += btnSpacing;
+    const leaderboardBtn = createModernButton(
       this,
       width / 2,
-      height * 0.80,
-      240,
-      60,
-      CYBERPUNK_COLORS.neonPurple,
-      '> LEADERBOARD',
+      btnY,
+      btnWidth,
+      btnHeight,
+      MODERN_COLORS.buttonSecondary,
+      'LEADERBOARD',
       () => {
         this.scene.start('Leaderboard');
       }
     );
 
-    const menuBtn = createCyberpunkButton(
+    btnY += btnSpacing;
+    const menuBtn = createModernButton(
       this,
       width / 2,
-      height * 0.90,
-      240,
-      60,
-      0x666666,
-      '> MAIN MENU',
+      btnY,
+      btnWidth,
+      btnHeight,
+      0x4a5568,
+      'MENU',
       () => {
         this.scene.start('MainMenu');
       }
@@ -237,21 +179,5 @@ export class GameOver extends Phaser.Scene {
     }
   }
 
-  createGridOverlay(width, height) {
-    const gridGroup = this.add.group();
-    const gridColor = CYBERPUNK_COLORS.neonCyan;
-    const gridAlpha = 0.05;
-    const spacing = 100;
-
-    for (let x = 0; x < width; x += spacing) {
-      const line = this.add.line(x, height / 2, 0, -height / 2, 0, height / 2, gridColor, gridAlpha);
-      gridGroup.add(line);
-    }
-
-    for (let y = 0; y < height; y += spacing) {
-      const line = this.add.line(width / 2, y, -width / 2, 0, width / 2, 0, gridColor, gridAlpha);
-      gridGroup.add(line);
-    }
-  }
 }
 

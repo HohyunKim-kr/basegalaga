@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { STAGE_CONFIG, BOSS_CONFIG, calculateFinalScore } from '../utils/gameConfig.js';
-import { CYBERPUNK_COLORS, createCyberpunkTextStyle } from '../utils/cyberpunkStyle.js';
+import { MODERN_COLORS, createModernTextStyle, createModernPanel, createModernBackground, createModernGrid } from '../utils/modernStyle.js';
 import { WEAPON_PATTERNS, WEAPON_UPGRADE_ORDER } from '../utils/weaponPatterns.js';
 import { ITEM_TYPES, getRandomItem } from '../utils/items.js';
 import { isMobile } from '../main.js';
@@ -58,6 +58,11 @@ export class GameScene extends Phaser.Scene {
     // Item selection system
     this.itemSelectionActive = false;
     this.itemSelectionUI = null;
+    
+    // Skill system
+    this.skillCooldown = 0;
+    this.skillCooldownMax = 10000; // 10 seconds
+    this.skillActive = false;
   }
 
   create() {
@@ -68,13 +73,11 @@ export class GameScene extends Phaser.Scene {
       this.physics.resume();
     }
 
-    // Cyberpunk gradient background
-    const bg1 = this.add.rectangle(width / 2, 0, width, height / 3, CYBERPUNK_COLORS.bgDark);
-    const bg2 = this.add.rectangle(width / 2, height / 3, width, height / 3, CYBERPUNK_COLORS.bgPurple);
-    const bg3 = this.add.rectangle(width / 2, (height / 3) * 2, width, height / 3, CYBERPUNK_COLORS.bgBlue);
+    // Modern gradient background
+    createModernBackground(this, width, height);
     
-    // Grid overlay
-    this.createGridOverlay(width, height);
+    // Subtle grid overlay
+    createModernGrid(this, width, height);
 
     // Create groups
     if (this.bullets) {
@@ -91,41 +94,49 @@ export class GameScene extends Phaser.Scene {
     this.enemies = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
 
-    // Player with cyberpunk glow
-    this.player = this.add.rectangle(width / 2, height - 80, 40, 40, CYBERPUNK_COLORS.neonGreen);
+    // Player with modern design
+    this.player = this.add.rectangle(width / 2, height - 80, 40, 40, MODERN_COLORS.accentTertiary);
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
     this.player.body.setImmovable(true);
     
-    // Player glow effect
-    this.playerGlow = this.add.rectangle(this.player.x, this.player.y, 44, 44, CYBERPUNK_COLORS.neonGreen, 0.3);
+    // Player subtle glow
+    this.playerGlow = this.add.rectangle(this.player.x, this.player.y, 44, 44, MODERN_COLORS.accentTertiary, 0.2);
     this.playerGlow.setDepth(-1);
 
-    // Cyberpunk UI Panel
+    // Modern UI Panel
     this.createUIPanel(width, height);
 
-    // UI Text with cyberpunk style (adjust font size for mobile)
+    // UI Text - Modern, clean design (above panels)
     const fontSize = isMobile ? 14 : 18;
-    const uiX = isMobile ? 20 : 30;
-    this.scoreText = this.add.text(uiX, isMobile ? 20 : 25, '> SCORE: 0', createCyberpunkTextStyle(fontSize, CYBERPUNK_COLORS.textPrimary));
+    const uiX = isMobile ? 12 : 20;
+    const uiYSpacing = isMobile ? 22 : 28;
+    const uiY = isMobile ? 14 : 22;
+    
+    this.scoreText = this.add.text(uiX, uiY, 'SCORE: 0', createModernTextStyle(fontSize, '#ffffff', '600'))
+      .setDepth(1000);
 
-    this.stageText = this.add.text(uiX, isMobile ? 40 : 55, '> STAGE: 1', createCyberpunkTextStyle(fontSize, CYBERPUNK_COLORS.textAccent));
+    this.stageText = this.add.text(uiX, uiY + uiYSpacing, 'STAGE: 1', createModernTextStyle(fontSize, '#ffffff', '600'))
+      .setDepth(1000);
 
-    this.timeText = this.add.text(uiX, isMobile ? 60 : 85, '> TIME: 00:00', createCyberpunkTextStyle(fontSize, CYBERPUNK_COLORS.textPrimary));
+    this.timeText = this.add.text(uiX, uiY + uiYSpacing * 2, 'TIME: 00:00', createModernTextStyle(fontSize, '#ffffff', '500'))
+      .setDepth(1000);
 
-    // Health display with cyberpunk style (adjust position for mobile)
-    const healthX = isMobile ? width - 150 : width - 180;
-    const healthY = isMobile ? 20 : 25;
-    this.healthText = this.add.text(healthX, healthY, `> HEALTH: ${this.playerHealth}/${this.maxHealth}`, 
-      createCyberpunkTextStyle(isMobile ? 14 : 18, CYBERPUNK_COLORS.textWarning))
-      .setOrigin(1, 0);
+    // Health display
+    const healthX = isMobile ? width - 12 : width - 20;
+    const healthY = uiY;
+    this.healthText = this.add.text(healthX, healthY, `HP: ${this.playerHealth}/${this.maxHealth}`, 
+      createModernTextStyle(fontSize, '#ffffff', '600'))
+      .setOrigin(1, 0)
+      .setDepth(1000);
 
-    // Weapon display (adjust position for mobile)
-    const weaponX = isMobile ? width - 150 : width - 180;
-    const weaponY = isMobile ? 45 : 55;
-    this.weaponText = this.add.text(weaponX, weaponY, `> WEAPON: ${this.currentWeapon.name}`, 
-      createCyberpunkTextStyle(isMobile ? 12 : 16, this.currentWeapon.color))
-      .setOrigin(1, 0);
+    // Weapon display
+    const weaponX = isMobile ? width - 12 : width - 20;
+    const weaponY = uiY + uiYSpacing;
+    this.weaponText = this.add.text(weaponX, weaponY, `WP: ${this.currentWeapon.name}`, 
+      createModernTextStyle(isMobile ? 12 : 16, '#ffffff', '500'))
+      .setOrigin(1, 0)
+      .setDepth(1000);
 
     // Controls
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -137,7 +148,8 @@ export class GameScene extends Phaser.Scene {
       right: false,
       up: false,
       down: false,
-      shoot: false
+      shoot: false,
+      skill: false
     };
     
     if (isMobile) {
@@ -164,7 +176,7 @@ export class GameScene extends Phaser.Scene {
     this.elapsedTime = time - this.startTime;
     const minutes = Math.floor(this.elapsedTime / 60000);
     const seconds = Math.floor((this.elapsedTime % 60000) / 1000);
-    this.timeText.setText(`> TIME: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
+    this.timeText.setText(`TIME: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`);
 
     // Player movement (4 directions) - keyboard or touch
     const moveSpeed = 5;
@@ -181,10 +193,12 @@ export class GameScene extends Phaser.Scene {
       this.player.y += moveSpeed;
     }
     
-    // Keep player in bounds
+    // Keep player in bounds - 더 넓은 공간 활용
     const { width, height } = this.cameras.main;
+    const topBound = isMobile ? 70 : 100;
+    const bottomBound = isMobile ? height - 160 : height - 20;
     this.player.x = Phaser.Math.Clamp(this.player.x, 20, width - 20);
-    this.player.y = Phaser.Math.Clamp(this.player.y, 100, height - 20);
+    this.player.y = Phaser.Math.Clamp(this.player.y, topBound, bottomBound);
     
     // Update player glow position
     if (this.playerGlow) {
@@ -196,6 +210,31 @@ export class GameScene extends Phaser.Scene {
     if ((this.spaceKey.isDown || this.touchControls.shoot) && time - this.lastShotTime > (this.fireRate / this.fireRateMultiplier)) {
       this.shoot();
       this.lastShotTime = time;
+    }
+    
+    // Skill activation - keyboard (X key) or touch
+    const xKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+    if ((xKey.isDown && !this.skillActive && this.skillCooldown <= 0) || 
+        (this.touchControls.skill && !this.skillActive && this.skillCooldown <= 0)) {
+      this.activateSkill();
+      this.touchControls.skill = false; // Reset after activation
+    }
+    
+    // Update skill cooldown
+    if (this.skillCooldown > 0) {
+      this.skillCooldown -= this.sys.game.loop.delta;
+      if (this.skillCooldown < 0) this.skillCooldown = 0;
+      
+      // Update cooldown indicator
+      if (this.skillCooldownIndicator && this.skillButton) {
+        const cooldownPercent = this.skillCooldown / this.skillCooldownMax;
+        this.skillCooldownIndicator.setScale(1, cooldownPercent);
+        this.skillCooldownIndicator.setVisible(cooldownPercent > 0);
+        
+        if (cooldownPercent <= 0 && this.skillPulseTween) {
+          this.skillPulseTween.resume();
+        }
+      }
     }
 
     // Enemy AI
@@ -294,7 +333,7 @@ export class GameScene extends Phaser.Scene {
       this.enemiesToKill += 1; // Boss counts as enemy
     }
 
-    this.stageText.setText(`> STAGE: ${this.currentStage}`);
+    this.stageText.setText(`STAGE: ${this.currentStage}`);
 
     // Spawn enemies in formation
     this.spawnEnemyFormation();
@@ -679,7 +718,7 @@ export class GameScene extends Phaser.Scene {
         const finalPoints = Math.floor(basePoints * this.activeEffects.scoreMultiplier);
         this.score += finalPoints;
         this.enemiesKilled++;
-        this.scoreText.setText(`> SCORE: ${this.score}`);
+        this.scoreText.setText(`SCORE: ${this.score}`);
         
         enemy.destroy();
       }
@@ -706,26 +745,12 @@ export class GameScene extends Phaser.Scene {
       
       // Restore full health when boss is defeated
       this.playerHealth = this.maxHealth;
-      this.healthText.setText(`> HEALTH: ${this.playerHealth}/${this.maxHealth}`);
+      this.healthText.setText(`HP: ${this.playerHealth}/${this.maxHealth}`);
       
-      // Show health restored message
+      // Show health restored message - Modern style
       const { width, height } = this.cameras.main;
-      const restoreText = this.add.text(width / 2, height / 2, '> HEALTH RESTORED <', {
-        fontSize: '36px',
-        fontFamily: 'Courier New',
-        fontStyle: 'bold',
-        color: CYBERPUNK_COLORS.textSuccess,
-        stroke: '#000000',
-        strokeThickness: 3,
-        shadow: {
-          offsetX: 0,
-          offsetY: 0,
-          color: CYBERPUNK_COLORS.textSuccess,
-          blur: 3,
-          stroke: true,
-          fill: true
-        }
-      }).setOrigin(0.5);
+      const restoreText = this.add.text(width / 2, height / 2, 'HEALTH RESTORED', createModernTextStyle(isMobile ? 32 : 40, '#ffffff', '700'))
+        .setOrigin(0.5);
       
       this.time.delayedCall(1000, () => {
         restoreText.destroy();
@@ -768,140 +793,201 @@ export class GameScene extends Phaser.Scene {
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8);
     overlay.setDepth(1000);
     
-    // Selection panel
-    const panel = this.add.rectangle(width / 2, height / 2, width * 0.9, height * 0.6, CYBERPUNK_COLORS.bgDark, 0.95);
-    panel.setStrokeStyle(3, CYBERPUNK_COLORS.neonCyan, 1);
+    // Selection panel - Modern design (responsive)
+    const panelWidth = isMobile ? width * 0.99 : width * 0.9; // Almost full width on mobile
+    const panelHeight = isMobile ? height * 0.80 : height * 0.6; // Taller on mobile
+    const panel = createModernPanel(this, width / 2, height / 2, panelWidth, panelHeight, 0.95);
+    panel.setStrokeStyle(3, MODERN_COLORS.accentPrimary, 1);
     panel.setDepth(1001);
     
-    // Title
-    const title = this.add.text(width / 2, height * 0.25, '> SELECT ITEM <', {
-      fontSize: '36px',
-      fontFamily: 'Courier New',
-      fontStyle: 'bold',
-      color: CYBERPUNK_COLORS.textPrimary,
-      stroke: '#000000',
-      strokeThickness: 4,
-      shadow: {
-        offsetX: 0,
-        offsetY: 0,
-        color: CYBERPUNK_COLORS.textPrimary,
-        blur: 3,
-        stroke: true,
-        fill: true
-      }
-    }).setOrigin(0.5).setDepth(1002);
+    // Title - Modern style (responsive position)
+    const titleY = isMobile ? height * 0.22 : height * 0.25;
+    const title = this.add.text(width / 2, titleY, 'SELECT ITEM', createModernTextStyle(isMobile ? 24 : 40, '#ffffff', '700'))
+      .setOrigin(0.5).setDepth(1002);
     
-    // Item buttons
+    // Item buttons - Responsive layout
     const itemButtons = [];
-    const itemSpacing = width / 4;
-    const startX = width / 2 - itemSpacing;
     
-    selectedItems.forEach((itemType, index) => {
-      const x = startX + (index * itemSpacing);
-      const y = height / 2;
+    if (isMobile) {
+      // Mobile: Full width layout - cards fill the screen
+      // Minimal margins for maximum space usage
+      const margin = width * 0.02; // 2% margin on each side (minimal)
+      const cardSpacing = width * 0.015; // 1.5% spacing between cards (minimal)
+      const availableWidth = width - (margin * 2);
+      const totalSpacing = cardSpacing * 2; // 2 gaps between 3 cards
+      const cardWidth = (availableWidth - totalSpacing) / 3; // Equal width for 3 cards
+      const cardHeight = height * 0.38; // 38% of screen height (increased)
       
-      // Item card
-      const card = this.add.rectangle(x, y, 200, 250, itemType.color, 0.2);
-      card.setStrokeStyle(3, itemType.color, 0.8);
-      card.setDepth(1002);
-      card.setInteractive({ useHandCursor: true });
+      const centerY = height * 0.52; // Slightly lower for better fit
       
-      // Item icon (large circle)
-      const icon = this.add.circle(x, y - 40, 40, itemType.color);
-      icon.setStrokeStyle(4, itemType.color, 1);
-      icon.setDepth(1003);
-      
-      // Pulsing icon animation
-      this.tweens.add({
-        targets: icon,
-        scale: { from: 0.9, to: 1.1 },
-        alpha: { from: 0.7, to: 1 },
-        duration: 1000,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
+      selectedItems.forEach((itemType, index) => {
+        // Calculate each card's left edge first, then center
+        // Card left edge = margin + index * (cardWidth + spacing)
+        const cardLeft = margin + (index * (cardWidth + cardSpacing));
+        // Card center = left edge + half width
+        const x = cardLeft + (cardWidth / 2);
+        const y = centerY;
+        
+        // Item card - ensure it fits, use exact dimensions
+        const card = this.add.rectangle(x, y, cardWidth, cardHeight, itemType.color, 0.2);
+        card.setStrokeStyle(2, itemType.color, 0.8); // Thinner stroke to prevent overlap
+        card.setDepth(1002);
+        // Set interactive - use default hit area
+        card.setInteractive();
+        
+        // Item icon - smaller for mobile
+        const iconSize = Math.min(cardWidth * 0.18, 20);
+        const icon = this.add.circle(x, y - cardHeight * 0.22, iconSize, itemType.color);
+        icon.setStrokeStyle(2, itemType.color, 1); // Thinner stroke
+        icon.setDepth(1003);
+        
+        // Pulsing icon animation
+        this.tweens.add({
+          targets: icon,
+          scale: { from: 0.9, to: 1.1 },
+          alpha: { from: 0.7, to: 1 },
+          duration: 1000,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+        
+        // Selection number - smaller
+        const numText = this.add.text(x, y - cardHeight * 0.38, `${index + 1}`, createModernTextStyle(16, '#ffffff', '700'))
+          .setOrigin(0.5).setDepth(1003);
+        
+        // Item name - compact
+        const nameText = this.add.text(x, y + cardHeight * 0.12, itemType.name, createModernTextStyle(10, `#${itemType.color.toString(16).padStart(6, '0')}`, '600'))
+          .setOrigin(0.5).setDepth(1003)
+          .setWordWrapWidth(cardWidth * 0.85);
+        
+        // Item description - very compact
+        const description = itemType.description || 'UPGRADE';
+        const descText = this.add.text(x, y + cardHeight * 0.32, description, createModernTextStyle(8, '#ffffff', '400'))
+          .setOrigin(0.5).setDepth(1003)
+          .setAlign('center')
+          .setWordWrapWidth(cardWidth * 0.8);
+        
+        // Click handler
+        card.on('pointerdown', () => {
+          this.selectItem(itemType);
+        });
+        
+        // Touch feedback - keep stroke same size to prevent visual overlap
+        card.on('pointerover', () => {
+          card.setFillStyle(itemType.color, 0.4);
+          card.setStrokeStyle(2, itemType.color, 1); // Keep same stroke width
+          icon.setScale(1.15); // Smaller scale to prevent overlap
+        });
+        
+        card.on('pointerout', () => {
+          card.setFillStyle(itemType.color, 0.2);
+          card.setStrokeStyle(2, itemType.color, 0.8); // Keep same stroke width
+          icon.setScale(1);
+        });
+        
+        itemButtons.push({
+          card,
+          icon,
+          nameText,
+          descText,
+          numText,
+          itemType
+        });
       });
+    } else {
+      // Desktop: Responsive horizontal layout - centered
+      // Calculate to ensure cards don't overlap and are centered
+      const cardWidth = Math.min(200, width * 0.18); // Max 200px or 18% of width
+      const cardHeight = Math.min(250, height * 0.4); // Max 250px or 40% of height
+      const cardSpacing = Math.max(20, width * 0.03); // At least 20px or 3% of width
       
-      // Item name
-      const nameText = this.add.text(x, y + 20, itemType.name, {
-        fontSize: '20px',
-        fontFamily: 'Courier New',
-        fontStyle: 'bold',
-        color: `#${itemType.color.toString(16).padStart(6, '0')}`,
-        stroke: '#000000',
-        strokeThickness: 2
-      }).setOrigin(0.5).setDepth(1003);
+      // Calculate total width needed for 3 cards + 2 gaps
+      const totalCardsWidth = (cardWidth * 3) + (cardSpacing * 2);
+      // Center the entire group
+      const startX = (width - totalCardsWidth) / 2;
       
-      // Item description
-      let description = '';
-      if (itemType.effect === 'upgradeWeapon') {
-        description = 'WEAPON UPGRADE\nPERMANENT';
-      } else if (itemType.effect === 'restoreHealth') {
-        description = 'HEALTH RESTORE\nFULL HP';
-      } else if (itemType.effect === 'increaseFireRate') {
-        description = 'FIRE RATE UP\nPERMANENT';
-      } else if (itemType.effect === 'activateShield') {
-        description = 'MAX HEALTH +1\nPERMANENT';
-      } else if (itemType.effect === 'scoreMultiplier') {
-        description = 'SCORE MULTIPLIER\n+0.2 PERMANENT';
-      }
+      const centerY = height / 2;
       
-      const descText = this.add.text(x, y + 60, description, {
-        fontSize: '14px',
-        fontFamily: 'Courier New',
-        color: '#ffffff',
-        stroke: '#000000',
-        strokeThickness: 1,
-        align: 'center'
-      }).setOrigin(0.5).setDepth(1003);
-      
-      // Selection number
-      const numText = this.add.text(x, y - 100, `[${index + 1}]`, {
-        fontSize: '24px',
-        fontFamily: 'Courier New',
-        fontStyle: 'bold',
-        color: CYBERPUNK_COLORS.textAccent,
-        stroke: '#000000',
-        strokeThickness: 2
-      }).setOrigin(0.5).setDepth(1003);
-      
-      // Click handler
-      card.on('pointerdown', () => {
-        this.selectItem(itemType);
+      selectedItems.forEach((itemType, index) => {
+        // Calculate each card's left edge first, then center
+        const cardLeft = startX + (index * (cardWidth + cardSpacing));
+        const x = cardLeft + (cardWidth / 2);
+        const y = centerY;
+        
+        // Item card - use exact dimensions
+        const card = this.add.rectangle(x, y, cardWidth, cardHeight, itemType.color, 0.2);
+        card.setStrokeStyle(2, itemType.color, 0.8); // Thinner stroke
+        card.setDepth(1002);
+        // Set interactive - use default hit area
+        card.setInteractive();
+        
+        // Item icon - responsive size
+        const iconSize = Math.min(40, cardWidth * 0.2);
+        const icon = this.add.circle(x, y - cardHeight * 0.16, iconSize, itemType.color);
+        icon.setStrokeStyle(2, itemType.color, 1);
+        icon.setDepth(1003);
+        
+        // Pulsing icon animation
+        this.tweens.add({
+          targets: icon,
+          scale: { from: 0.9, to: 1.1 },
+          alpha: { from: 0.7, to: 1 },
+          duration: 1000,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+        
+        // Selection number
+        const numText = this.add.text(x, y - cardHeight * 0.4, `${index + 1}`, createModernTextStyle(Math.min(26, cardWidth / 8), '#ffffff', '700'))
+          .setOrigin(0.5).setDepth(1003);
+        
+        // Item name
+        const nameText = this.add.text(x, y + cardHeight * 0.08, itemType.name, createModernTextStyle(Math.min(18, cardWidth / 11), `#${itemType.color.toString(16).padStart(6, '0')}`, '600'))
+          .setOrigin(0.5).setDepth(1003)
+          .setWordWrapWidth(cardWidth * 0.85);
+        
+        // Item description
+        const description = itemType.description || 'UPGRADE';
+        const descText = this.add.text(x, y + cardHeight * 0.24, description, createModernTextStyle(Math.min(12, cardWidth / 16), '#ffffff', '400'))
+          .setOrigin(0.5).setDepth(1003)
+          .setAlign('center')
+          .setWordWrapWidth(cardWidth * 0.8);
+        
+        // Click handler
+        card.on('pointerdown', () => {
+          this.selectItem(itemType);
+        });
+        
+        // Hover effect - keep stroke same size to prevent visual overlap
+        card.on('pointerover', () => {
+          card.setFillStyle(itemType.color, 0.4);
+          card.setStrokeStyle(2, itemType.color, 1); // Keep same stroke width
+          icon.setScale(1.15); // Smaller scale to prevent overlap
+        });
+        
+        card.on('pointerout', () => {
+          card.setFillStyle(itemType.color, 0.2);
+          card.setStrokeStyle(2, itemType.color, 0.8); // Keep same stroke width
+          icon.setScale(1);
+        });
+        
+        itemButtons.push({
+          card,
+          icon,
+          nameText,
+          descText,
+          numText,
+          itemType
+        });
       });
-      
-      // Hover effect
-      card.on('pointerover', () => {
-        card.setFillStyle(itemType.color, 0.4);
-        card.setStrokeStyle(4, itemType.color, 1);
-        icon.setScale(1.2);
-      });
-      
-      card.on('pointerout', () => {
-        card.setFillStyle(itemType.color, 0.2);
-        card.setStrokeStyle(3, itemType.color, 0.8);
-        icon.setScale(1);
-      });
-      
-      itemButtons.push({
-        card,
-        icon,
-        nameText,
-        descText,
-        numText,
-        itemType
-      });
-    });
+    }
     
-    // Instructions
-    const instructionText = this.add.text(width / 2, height * 0.75, 'CLICK TO SELECT | [1] [2] [3] KEYS', {
-      fontSize: '18px',
-      fontFamily: 'Courier New',
-      fontStyle: 'bold',
-      color: CYBERPUNK_COLORS.textAccent,
-      stroke: '#000000',
-      strokeThickness: 2
-    }).setOrigin(0.5).setDepth(1003);
+    // Instructions - Modern style (responsive position)
+    const instructionY = isMobile ? height * 0.88 : height * 0.75;
+    const instructionText = this.add.text(width / 2, instructionY, isMobile ? 'Tap to select' : 'Click to select | [1] [2] [3] keys', createModernTextStyle(isMobile ? 12 : 16, '#ffffff', '500'))
+      .setOrigin(0.5).setDepth(1003);
     
     // Keyboard selection
     const key1 = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE);
@@ -977,41 +1063,27 @@ export class GameScene extends Phaser.Scene {
     
     // Apply permanent stat upgrade
     switch (itemType.effect) {
-      case 'upgradeWeapon':
+      case 'permanentUpgradeWeapon':
         this.permanentUpgradeWeapon();
         break;
-      case 'restoreHealth':
+      case 'permanentRestoreHealth':
         this.permanentRestoreHealth();
         break;
-      case 'increaseFireRate':
+      case 'permanentIncreaseFireRate':
         this.permanentIncreaseFireRate();
         break;
-      case 'activateShield':
+      case 'permanentIncreaseMaxHealth':
         this.permanentIncreaseMaxHealth();
         break;
-      case 'scoreMultiplier':
+      case 'permanentIncreaseScoreMultiplier':
         this.permanentIncreaseScoreMultiplier();
         break;
     }
     
-    // Show selection effect
+    // Show selection effect - Modern style
     const { width, height } = this.cameras.main;
-    const effectText = this.add.text(width / 2, height / 2, `> ${itemType.name} SELECTED <`, {
-      fontSize: '32px',
-      fontFamily: 'Courier New',
-      fontStyle: 'bold',
-      color: `#${itemType.color.toString(16).padStart(6, '0')}`,
-      stroke: '#000000',
-      strokeThickness: 3,
-      shadow: {
-        offsetX: 0,
-        offsetY: 0,
-        color: `#${itemType.color.toString(16).padStart(6, '0')}`,
-        blur: 3,
-        stroke: true,
-        fill: true
-      }
-    }).setOrigin(0.5).setDepth(1000);
+    const effectText = this.add.text(width / 2, height / 2, `${itemType.name} SELECTED`, createModernTextStyle(isMobile ? 28 : 36, `#${itemType.color.toString(16).padStart(6, '0')}`, '700'))
+      .setOrigin(0.5).setDepth(1000);
     
     this.tweens.add({
       targets: effectText,
@@ -1039,7 +1111,7 @@ export class GameScene extends Phaser.Scene {
     // Reset to base stats
     if (this.activeEffect === 'upgradeWeapon') {
       this.currentWeapon = this.baseWeapon;
-      this.weaponText.setText(`> WEAPON: ${this.currentWeapon.name}`);
+      this.weaponText.setText(`WP: ${this.currentWeapon.name}`);
       this.weaponText.setColor(`#${this.currentWeapon.color.toString(16).padStart(6, '0')}`);
     }
     
@@ -1104,7 +1176,7 @@ export class GameScene extends Phaser.Scene {
       this.currentWeapon = this.baseWeapon;
       this.weaponLevel = currentIndex + 1;
       
-      this.weaponText.setText(`> WEAPON: ${this.currentWeapon.name}`);
+      this.weaponText.setText(`WP: ${this.currentWeapon.name}`);
       this.weaponText.setColor(`#${this.currentWeapon.color.toString(16).padStart(6, '0')}`);
       
       this.showItemMessage('WEAPON PERMANENTLY UPGRADED!', this.currentWeapon.color);
@@ -1113,8 +1185,8 @@ export class GameScene extends Phaser.Scene {
 
   permanentRestoreHealth() {
     // Restore health to max
-    this.playerHealth = Math.min(this.maxHealth, this.playerHealth + 1);
-    this.healthText.setText(`> HEALTH: ${this.playerHealth}/${this.maxHealth}`);
+    this.playerHealth = this.maxHealth;
+    this.healthText.setText(`HP: ${this.playerHealth}/${this.maxHealth}`);
     this.showItemMessage('HEALTH RESTORED!', ITEM_TYPES.HEALTH.color);
   }
 
@@ -1122,7 +1194,7 @@ export class GameScene extends Phaser.Scene {
     // Permanently increase max health
     this.maxHealth += 1;
     this.playerHealth += 1; // Also increase current health
-    this.healthText.setText(`> HEALTH: ${this.playerHealth}/${this.maxHealth}`);
+    this.healthText.setText(`HP: ${this.playerHealth}/${this.maxHealth}`);
     this.showItemMessage(`MAX HEALTH INCREASED TO ${this.maxHealth}!`, ITEM_TYPES.SHIELD.color);
   }
 
@@ -1328,22 +1400,8 @@ export class GameScene extends Phaser.Scene {
 
   showItemMessage(text, color) {
     const { width, height } = this.cameras.main;
-    const message = this.add.text(width / 2, height * 0.3, `> ${text} <`, {
-      fontSize: '24px',
-      fontFamily: 'Courier New',
-      fontStyle: 'bold',
-      color: `#${color.toString(16).padStart(6, '0')}`,
-      stroke: '#000000',
-      strokeThickness: 3,
-      shadow: {
-        offsetX: 0,
-        offsetY: 0,
-        color: `#${color.toString(16).padStart(6, '0')}`,
-        blur: 15,
-        stroke: true,
-        fill: true
-      }
-    }).setOrigin(0.5);
+    const message = this.add.text(width / 2, height * 0.3, text, createModernTextStyle(isMobile ? 24 : 28, `#${color.toString(16).padStart(6, '0')}`, '700'))
+      .setOrigin(0.5);
     
     this.tweens.add({
       targets: message,
@@ -1370,7 +1428,7 @@ export class GameScene extends Phaser.Scene {
     if (enemyOrBullet && enemyOrBullet.active) {
       const damage = enemyOrBullet.damage || 1;
       this.playerHealth = Math.max(0, this.playerHealth - damage);
-      this.healthText.setText(`> HEALTH: ${this.playerHealth}/${this.maxHealth}`);
+      this.healthText.setText(`HP: ${this.playerHealth}/${this.maxHealth}`);
       
       if (enemyOrBullet.body && enemyOrBullet.body.velocity) {
         // Only destroy bullets, not enemies (enemies bounce)
@@ -1404,26 +1462,12 @@ export class GameScene extends Phaser.Scene {
     try {
       this.stageCleared = true;
       this.score += this.currentStage * 100; // Stage clear bonus
-      this.scoreText.setText(`> SCORE: ${this.score}`);
+      this.scoreText.setText(`SCORE: ${this.score}`);
     
-    // Stage clear message
+    // Stage clear message - Modern style
     const { width, height } = this.cameras.main;
-    const clearText = this.add.text(width / 2, height / 2, `> STAGE ${this.currentStage} CLEAR <`, {
-      fontSize: '52px',
-      fontFamily: 'Courier New',
-      fontStyle: 'bold',
-      color: CYBERPUNK_COLORS.textSuccess,
-      stroke: '#000000',
-      strokeThickness: 4,
-      shadow: {
-        offsetX: 0,
-        offsetY: 0,
-        color: CYBERPUNK_COLORS.textSuccess,
-        blur: 3,
-        stroke: true,
-        fill: true
-      }
-    }).setOrigin(0.5);
+    const clearText = this.add.text(width / 2, height / 2, `STAGE ${this.currentStage} CLEAR`, createModernTextStyle(isMobile ? 40 : 56, '#ffffff', '700'))
+      .setOrigin(0.5);
     
     // Animated glow
     this.tweens.add({
@@ -1469,31 +1513,215 @@ export class GameScene extends Phaser.Scene {
   }
 
   createUIPanel(width, height) {
-    // Top panel
-    const topPanel = this.add.rectangle(width / 2, 15, width, 120, CYBERPUNK_COLORS.bgDark, 0.8);
-    topPanel.setStrokeStyle(2, CYBERPUNK_COLORS.neonCyan, 0.5);
+    // Top panel - Modern design (behind text)
+    const topPanelHeight = isMobile ? 65 : 110;
+    const topPanel = createModernPanel(this, width / 2, topPanelHeight / 2, width, topPanelHeight, 0.7);
+    topPanel.setDepth(100);
     
-    // Bottom panel
-    const bottomPanel = this.add.rectangle(width / 2, height - 15, width, 30, CYBERPUNK_COLORS.bgDark, 0.8);
-    bottomPanel.setStrokeStyle(2, CYBERPUNK_COLORS.neonCyan, 0.5);
+    // Bottom panel - Modern design (behind controls)
+    const bottomPanelHeight = isMobile ? 160 : 35;
+    const bottomPanel = createModernPanel(this, width / 2, height - bottomPanelHeight / 2, width, bottomPanelHeight, 0.7);
+    bottomPanel.setDepth(100);
   }
 
-  createGridOverlay(width, height) {
-    const gridGroup = this.add.group();
-    const gridColor = CYBERPUNK_COLORS.neonCyan;
-    const gridAlpha = 0.05;
-    const spacing = 100;
 
-    // Vertical lines
-    for (let x = 0; x < width; x += spacing) {
-      const line = this.add.line(x, height / 2, 0, -height / 2, 0, height / 2, gridColor, gridAlpha);
-      gridGroup.add(line);
-    }
+  createMobileControls() {
+    const { width, height } = this.cameras.main;
+    this.mobileControls = {};
 
-    // Horizontal lines
-    for (let y = 0; y < height; y += spacing) {
-      const line = this.add.line(width / 2, y, -width / 2, 0, width / 2, 0, gridColor, gridAlpha);
-      gridGroup.add(line);
+    // Control button size and spacing (optimized for mobile)
+    const buttonSize = isMobile ? 55 : 50;
+    const buttonSpacing = isMobile ? 65 : 60;
+    const controlAlpha = 0.85;
+    const controlColor = MODERN_COLORS.accentPrimary;
+
+    // D-Pad (left side, bottom - fixed position)
+    const dpadX = buttonSize + 15;
+    const dpadY = height - buttonSize - 15;
+    
+    // Up button
+    const upBtn = this.add.rectangle(dpadX, dpadY - buttonSpacing, buttonSize, buttonSize, controlColor, controlAlpha);
+    upBtn.setStrokeStyle(2, controlColor, 1);
+    upBtn.setInteractive();
+    upBtn.setDepth(1000);
+    const upText = this.add.text(dpadX, dpadY - buttonSpacing, '↑', createModernTextStyle(24, '#ffffff', '700'))
+      .setOrigin(0.5).setDepth(1001);
+    upText.setInteractive(false); // Make text non-interactive
+    
+    upBtn.on('pointerdown', () => { this.touchControls.up = true; });
+    upBtn.on('pointerup', () => { this.touchControls.up = false; });
+    upBtn.on('pointerout', () => { this.touchControls.up = false; });
+
+    // Down button
+    const downBtn = this.add.rectangle(dpadX, dpadY + buttonSpacing, buttonSize, buttonSize, controlColor, controlAlpha);
+    downBtn.setStrokeStyle(2, controlColor, 1);
+    downBtn.setInteractive();
+    downBtn.setDepth(1000);
+    const downText = this.add.text(dpadX, dpadY + buttonSpacing, '↓', createModernTextStyle(24, '#ffffff', '700'))
+      .setOrigin(0.5).setDepth(1001);
+    downText.setInteractive(false); // Make text non-interactive
+    
+    downBtn.on('pointerdown', () => { this.touchControls.down = true; });
+    downBtn.on('pointerup', () => { this.touchControls.down = false; });
+    downBtn.on('pointerout', () => { this.touchControls.down = false; });
+
+    // Left button
+    const leftBtn = this.add.rectangle(dpadX - buttonSpacing, dpadY, buttonSize, buttonSize, controlColor, controlAlpha);
+    leftBtn.setStrokeStyle(2, controlColor, 1);
+    leftBtn.setInteractive();
+    leftBtn.setDepth(1000);
+    const leftText = this.add.text(dpadX - buttonSpacing, dpadY, '←', createModernTextStyle(24, '#ffffff', '700'))
+      .setOrigin(0.5).setDepth(1001);
+    leftText.setInteractive(false); // Make text non-interactive
+    
+    leftBtn.on('pointerdown', () => { this.touchControls.left = true; });
+    leftBtn.on('pointerup', () => { this.touchControls.left = false; });
+    leftBtn.on('pointerout', () => { this.touchControls.left = false; });
+
+    // Right button
+    const rightBtn = this.add.rectangle(dpadX + buttonSpacing, dpadY, buttonSize, buttonSize, controlColor, controlAlpha);
+    rightBtn.setStrokeStyle(2, controlColor, 1);
+    rightBtn.setInteractive();
+    rightBtn.setDepth(1000);
+    const rightText = this.add.text(dpadX + buttonSpacing, dpadY, '→', createModernTextStyle(24, '#ffffff', '700'))
+      .setOrigin(0.5).setDepth(1001);
+    rightText.setInteractive(false); // Make text non-interactive
+    
+    rightBtn.on('pointerdown', () => { this.touchControls.right = true; });
+    rightBtn.on('pointerup', () => { this.touchControls.right = false; });
+    rightBtn.on('pointerout', () => { this.touchControls.right = false; });
+
+    // Fire button (right side, bottom - fixed position)
+    const fireBtnSize = isMobile ? 75 : 70;
+    const fireBtnX = width - fireBtnSize - 15;
+    const fireBtnY = height - fireBtnSize - 15;
+    const fireBtn = this.add.circle(fireBtnX, fireBtnY, fireBtnSize / 2, MODERN_COLORS.accentWarning, controlAlpha);
+    fireBtn.setStrokeStyle(3, MODERN_COLORS.accentWarning, 1);
+    fireBtn.setInteractive();
+    fireBtn.setDepth(1000);
+    const fireText = this.add.text(fireBtnX, fireBtnY, 'FIRE', createModernTextStyle(16, '#ffffff', '700'))
+      .setOrigin(0.5).setDepth(1001);
+    fireText.setInteractive(false); // Make text non-interactive
+    
+    fireBtn.on('pointerdown', () => { this.touchControls.shoot = true; });
+    fireBtn.on('pointerup', () => { this.touchControls.shoot = false; });
+    fireBtn.on('pointerout', () => { this.touchControls.shoot = false; });
+
+    // Store references for cleanup
+    this.mobileControls = {
+      up: upBtn,
+      down: downBtn,
+      left: leftBtn,
+      right: rightBtn,
+      fire: fireBtn
+    };
+
+    // Add pulsing animation to fire button
+    this.tweens.add({
+      targets: fireBtn,
+      scale: { from: 0.95, to: 1.05 },
+      alpha: { from: 0.6, to: 0.8 },
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // Skill button (above fire button - fixed position)
+    const skillBtnSize = isMobile ? 65 : 60;
+    const skillBtnX = width - skillBtnSize - 15;
+    const skillBtnY = height - fireBtnSize - skillBtnSize - 25;
+    const skillBtn = this.add.circle(skillBtnX, skillBtnY, skillBtnSize / 2, MODERN_COLORS.accentSecondary, controlAlpha);
+    skillBtn.setStrokeStyle(3, MODERN_COLORS.accentSecondary, 1);
+    skillBtn.setInteractive();
+    skillBtn.setDepth(1000);
+    
+    // Skill button text
+    const skillText = this.add.text(skillBtnX, skillBtnY, 'SKILL', createModernTextStyle(12, '#ffffff', '700'))
+      .setOrigin(0.5).setDepth(1001);
+    skillText.setInteractive(false); // Make text non-interactive
+    
+    // Cooldown indicator
+    const cooldownCircle = this.add.circle(skillBtnX, skillBtnY, skillBtnSize / 2, 0x000000, 0.5);
+    cooldownCircle.setDepth(1002);
+    cooldownCircle.setVisible(false);
+    this.skillCooldownIndicator = cooldownCircle;
+    this.skillButton = skillBtn;
+    this.skillButtonText = skillText;
+    
+    skillBtn.on('pointerdown', () => { 
+      if (!this.skillActive && this.skillCooldown <= 0) {
+        this.touchControls.skill = true;
+      }
+    });
+    skillBtn.on('pointerup', () => { 
+      this.touchControls.skill = false;
+    });
+    skillBtn.on('pointerout', () => { 
+      this.touchControls.skill = false;
+    });
+
+    // Store skill button reference
+    this.mobileControls.skill = skillBtn;
+    
+    // Add pulsing animation to skill button when ready
+    this.skillPulseTween = this.tweens.add({
+      targets: skillBtn,
+      scale: { from: 0.95, to: 1.05 },
+      alpha: { from: 0.6, to: 0.8 },
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+      paused: true
+    });
+  }
+  
+  activateSkill() {
+    if (this.skillActive || this.skillCooldown > 0) return;
+    
+    this.skillActive = true;
+    this.skillCooldown = this.skillCooldownMax;
+    
+    // Skill effect: Rapid fire burst + screen clear
+    const { width, height } = this.cameras.main;
+    
+    // Visual effect
+    const skillEffect = this.add.rectangle(width / 2, height / 2, width, height, MODERN_COLORS.accentSecondary, 0.25);
+    skillEffect.setDepth(999);
+    this.tweens.add({
+      targets: skillEffect,
+      alpha: 0,
+      duration: 300,
+      onComplete: () => skillEffect.destroy()
+    });
+    
+    // Rapid fire burst
+    let burstCount = 0;
+    const burstInterval = setInterval(() => {
+      if (burstCount < 10) {
+        this.shoot();
+        burstCount++;
+      } else {
+        clearInterval(burstInterval);
+        this.skillActive = false;
+      }
+    }, 50);
+    
+    // Clear nearby enemy bullets
+    this.enemyBullets.children.entries.forEach(bullet => {
+      if (bullet && bullet.active) {
+        const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, bullet.x, bullet.y);
+        if (distance < 200) {
+          bullet.destroy();
+        }
+      }
+    });
+    
+    // Update skill button visual
+    if (this.skillCooldownIndicator) {
+      this.skillCooldownIndicator.setVisible(true);
+      this.skillPulseTween.pause();
     }
   }
 

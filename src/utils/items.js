@@ -4,44 +4,44 @@
 
 export const ITEM_TYPES = {
   POWER_UP: {
-    name: 'POWER_UP',
-    color: 0x00ffff,
+    name: 'WEAPON UPGRADE',
+    color: 0x4a90e2,      // Modern blue
     size: 20,
-    effect: 'upgradeWeapon',
-    dropChance: 0.20,
-    duration: 15000 // 15 seconds - temporary upgrade
+    effect: 'permanentUpgradeWeapon',
+    description: 'WEAPON UPGRADE\nPERMANENT',
+    duration: 0 // Permanent
   },
   HEALTH: {
-    name: 'HEALTH',
-    color: 0x00ff00,
+    name: 'HEALTH RESTORE',
+    color: 0x51cf66,      // Modern green
     size: 20,
-    effect: 'restoreHealth',
-    dropChance: 0.15,
+    effect: 'permanentRestoreHealth',
+    description: 'HEALTH RESTORE\nFULL HP',
     duration: 0 // Instant effect
   },
   SPEED_UP: {
-    name: 'SPEED_UP',
-    color: 0xffff00,
+    name: 'FIRE RATE BOOST',
+    color: 0x74b9ff,      // Light blue
     size: 20,
-    effect: 'increaseFireRate',
-    dropChance: 0.20,
-    duration: 12000 // 12 seconds
+    effect: 'permanentIncreaseFireRate',
+    description: 'FIRE RATE +30ms\nPERMANENT',
+    duration: 0 // Permanent
   },
   SHIELD: {
-    name: 'SHIELD',
-    color: 0x0088ff,
+    name: 'MAX HEALTH UP',
+    color: 0x7b68ee,      // Modern purple
     size: 20,
-    effect: 'activateShield',
-    dropChance: 0.15,
-    duration: 15000 // 15 seconds
+    effect: 'permanentIncreaseMaxHealth',
+    description: 'MAX HEALTH +1\nPERMANENT',
+    duration: 0 // Permanent
   },
   SCORE_BONUS: {
-    name: 'SCORE_BONUS',
-    color: 0xff00ff,
+    name: 'SCORE MULTIPLIER',
+    color: 0xff6b6b,      // Modern red/pink
     size: 20,
-    effect: 'scoreMultiplier',
-    dropChance: 0.15,
-    duration: 20000 // 20 seconds
+    effect: 'permanentIncreaseScoreMultiplier',
+    description: 'SCORE MULTIPLIER +0.2\nPERMANENT',
+    duration: 0 // Permanent
   }
 };
 

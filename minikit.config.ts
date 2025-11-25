@@ -8,10 +8,9 @@ const ROOT_URL = process.env.VERCEL_URL
 
 export const minikitConfig = {
   accountAssociation: {
-    // This will be added in step 5 after signing the manifest
-    "header": "",
-    "payload": "",
-    "signature": ""
+    "header": "eyJmaWQiOjE0MjUxMDcsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHg2MTE4NTZkMDM3RTMxYjA0RGM0NDk5M0EzMUFEOEE0NkQ3RTE5NzdkIn0",
+    "payload": "eyJkb21haW4iOiJiYXNlZ2FsYWdhLnZlcmNlbC5hcHAifQ",
+    "signature": "1Cs2AyJZGdrsvfxMcdkGksQhbH78u1HsPVnEyUsPWuYSgqm4b9rnXWZcGJlh5GLkzxhBJaO11tuiLMdf/goK7Bw="
   },
   baseBuilder: {
     // Base account address - will be set during account association
