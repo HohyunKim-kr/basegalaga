@@ -15,7 +15,7 @@ export const minikitConfig = {
   },
   baseBuilder: {
     // Base account address - will be set during account association
-    "ownerAddress": ""
+    "ownerAddress": "0xb44196187874DAA0E85ef96D3A4332F83FAee173"
   },
   miniapp: {
     version: "1",
