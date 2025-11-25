@@ -13,6 +13,10 @@ export const minikitConfig = {
     "payload": "",
     "signature": ""
   },
+  baseBuilder: {
+    // Base account address - will be set during account association
+    "ownerAddress": ""
+  },
   miniapp: {
     version: "1",
     name: "Base Galaga",
