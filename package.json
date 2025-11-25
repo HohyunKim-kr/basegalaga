@@ -10,10 +10,10 @@
     "generate-manifest": "node scripts/generate-manifest.js"
   },
   "dependencies": {
+    "@farcaster/miniapp-sdk": "^0.2.1",
     "phaser": "^3.80.1"
   },
   "devDependencies": {
     "vite": "^5.0.0"
   }
 }
-

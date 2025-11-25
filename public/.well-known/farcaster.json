@@ -26,5 +26,8 @@
     "ogTitle": "Base Galaga - MiniApp Game",
     "ogDescription": "Play the classic Galaga-style shooter game on Base MiniApp",
     "ogImageUrl": "https://your-app.vercel.app/og-image.png"
+  },
+  "baseBuilder": {
+    "ownerAddress": "0xb44196187874DAA0E85ef96D3A4332F83FAee173"
   }
 }

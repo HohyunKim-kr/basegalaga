@@ -28,9 +28,21 @@ const configContent = readFileSync(configPath, 'utf-8');
 
 // Helper function to extract string values
 const extractString = (content, key) => {
-  const regex = new RegExp(`${key}:\\s*["']([^"']+)["']`, 'g');
-  const match = regex.exec(content);
-  return match ? match[1] : null;
+  // Try multiple patterns
+  const patterns = [
+    new RegExp(`${key}:\\s*["']([^"']+)["']`, 'g'),  // "value" or 'value'
+    new RegExp(`${key}:\\s*["']([^"']+)["']`, 'g'),  // with escaped quotes
+    new RegExp(`"${key}":\\s*["']([^"']+)["']`, 'g'), // "key": "value"
+    new RegExp(`"${key}":\\s*["']([^"']+)["']`, 'g')  // "key": 'value'
+  ];
+  
+  for (const regex of patterns) {
+    const match = regex.exec(content);
+    if (match && match[1] && match[1].trim() !== '') {
+      return match[1].trim();
+    }
+  }
+  return null;
 };
 
 // Helper function to extract template literal with ROOT_URL
@@ -77,11 +89,36 @@ let baseBuilder = {};
 const builderMatch = configContent.match(/baseBuilder:\s*\{([\s\S]*?)\},?\s*\}/);
 if (builderMatch) {
   const builderContent = builderMatch[1];
-  const ownerAddress = extractString(builderContent, 'ownerAddress');
-  if (ownerAddress) {
+  // Try multiple patterns to extract ownerAddress
+  let ownerAddress = null;
+  
+  // Pattern 1: "ownerAddress": "0x..."
+  const pattern1 = /"ownerAddress"\s*:\s*"([^"]+)"/;
+  let match1 = pattern1.exec(builderContent);
+  if (match1) ownerAddress = match1[1];
+  
+  // Pattern 2: ownerAddress: "0x..."
+  if (!ownerAddress) {
+    const pattern2 = /ownerAddress\s*:\s*"([^"]+)"/;
+    match1 = pattern2.exec(builderContent);
+    if (match1) ownerAddress = match1[1];
+  }
+  
+  // Pattern 3: 'ownerAddress': '0x...'
+  if (!ownerAddress) {
+    const pattern3 = /['"]ownerAddress['"]\s*:\s*['"]([^'"]+)['"]/;
+    match1 = pattern3.exec(builderContent);
+    if (match1) ownerAddress = match1[1];
+  }
+  
+  // Include baseBuilder if ownerAddress exists and is not empty
+  if (ownerAddress && ownerAddress.trim() !== '' && ownerAddress.length > 10) {
     baseBuilder = {
-      ownerAddress: ownerAddress
+      ownerAddress: ownerAddress.trim()
     };
+    console.log('👤 Found ownerAddress:', ownerAddress);
+  } else {
+    console.log('⚠️  ownerAddress not found or invalid in baseBuilder');
   }
 }
 
