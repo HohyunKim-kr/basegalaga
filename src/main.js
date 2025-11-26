@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import UIPlugin from 'phaser3-rex-plugins/templates/ui/ui-plugin.js';
 import { sdk } from '@farcaster/miniapp-sdk';
 import { MainMenu } from './scenes/MainMenu.js';
 import { GameScene } from './scenes/GameScene.js';
@@ -154,6 +155,15 @@ const config = {
       gravity: { y: 0 },
       debug: false
     }
+  },
+  plugins: {
+    scene: [
+      {
+        key: 'rexUI',
+        plugin: UIPlugin,
+        mapping: 'rexUI'
+      }
+    ]
   },
   scene: [MainMenu, GameScene, GameOver, Leaderboard, GameSummaryScene],
   scale: {

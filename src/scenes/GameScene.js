@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { STAGE_CONFIG, BOSS_CONFIG, calculateFinalScore } from '../utils/gameConfig.js';
-import { MODERN_COLORS, createModernTextStyle, createModernPanel, createModernBackground, createModernGrid } from '../utils/modernStyle.js';
+import { MODERN_COLORS, createModernBackground, createModernGrid } from '../utils/modernStyle.js';
+import { createRexPanel, createRexLabel } from '../utils/rexUIHelper.js';
 import { WEAPON_PATTERNS, WEAPON_UPGRADE_ORDER } from '../utils/weaponPatterns.js';
 import { ITEM_TYPES, getRandomItem } from '../utils/items.js';
 import { isMobile } from '../main.js';
@@ -17,6 +18,13 @@ export class GameScene extends Phaser.Scene {
 
   preload() {
     console.log('=== GameScene preload 시작 ===');
+    
+    // 배경 이미지 로드
+    this.load.image('bg1', '/bg1.png');
+    this.load.image('bg2', '/bg2.png');
+    
+    // 캐릭터 이미지 로드
+    this.load.image('character', '/character.png');
     
     // 몬스터 이미지 로드
     // 이미지 파일은 public/enemies/ 폴더에 넣어주세요
@@ -119,14 +127,19 @@ export class GameScene extends Phaser.Scene {
     
     // 선택한 아이템 추적 (게임 요약용)
     this.selectedItemsHistory = [];
+    
+    // 배경 이미지
+    this.backgroundImage = null;
+    this.backgroundGradients = null; // 기존 그라디언트 배경 저장용
   }
 
   create() {
     const { width, height } = this.cameras.main;
 
     // 이미지 로드 상태 확인 및 재로드
-    const imageKeys = ['enemy1', 'enemy2', 'enemy3', 'enemy4', 'boss1', 'boss2'];
+    const imageKeys = ['character', 'enemy1', 'enemy2', 'enemy3', 'enemy4', 'boss1', 'boss2'];
     const imagePaths = {
+      'character': '/character.png',
       'enemy1': '/enemies/enemy1.png',
       'enemy2': '/enemies/enemy2.png',
       'enemy3': '/enemies/enemy3.png',
@@ -228,8 +241,8 @@ export class GameScene extends Phaser.Scene {
       this.physics.resume();
     }
 
-    // Modern gradient background
-    createModernBackground(this, width, height);
+    // 배경 이미지 설정 (스테이지에 따라)
+    this.updateBackground(width, height);
     
     // Subtle grid overlay
     createModernGrid(this, width, height);
@@ -249,8 +262,23 @@ export class GameScene extends Phaser.Scene {
     this.enemies = this.physics.add.group();
     this.enemyBullets = this.physics.add.group();
 
-    // Player with modern design
-    this.player = this.add.rectangle(width / 2, height - 80, 40, 40, MODERN_COLORS.accentTertiary);
+    // Player with character image
+    const playerX = width / 2;
+    const playerY = height - 80;
+    const playerSize = isMobile ? 60 : 70; // 캐릭터 크기 증가
+    
+    // 캐릭터 이미지가 로드되어 있는지 확인
+    if (this.textures.exists('character')) {
+      // 이미지로 플레이어 생성
+      this.player = this.add.image(playerX, playerY, 'character');
+      this.player.setDisplaySize(playerSize, playerSize);
+      console.log('✓ 캐릭터 이미지로 플레이어 생성');
+    } else {
+      // 이미지가 없으면 기존 사각형으로 폴백
+      console.warn('⚠️ 캐릭터 이미지가 로드되지 않음. 사각형으로 폴백.');
+      this.player = this.add.rectangle(playerX, playerY, playerSize, playerSize, MODERN_COLORS.accentPrimary);
+    }
+    
     this.physics.add.existing(this.player);
     this.player.body.setCollideWorldBounds(true);
     this.player.body.setImmovable(true);
@@ -259,43 +287,71 @@ export class GameScene extends Phaser.Scene {
       this.player.setInteractive(false);
     }
     
-    // Player subtle glow
-    this.playerGlow = this.add.rectangle(this.player.x, this.player.y, 44, 44, MODERN_COLORS.accentTertiary, 0.2);
+    // Player 네온 글로우 효과 (캐릭터 크기에 맞게 조정)
+    const glowSize = playerSize * 1.3;
+    this.playerGlow = this.add.circle(this.player.x, this.player.y, glowSize, MODERN_COLORS.accentPrimary, 0.3);
     this.playerGlow.setDepth(-1);
+    
+    // 글로우 애니메이션
+    this.tweens.add({
+      targets: this.playerGlow,
+      alpha: { from: 0.2, to: 0.4 },
+      scale: { from: 0.9, to: 1.1 },
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
 
     // Modern UI Panel
     this.createUIPanel(width, height);
 
-    // UI Text - Modern, clean design (above panels)
+    // UI Text - Rex UI Labels
     const fontSize = isMobile ? 14 : 18;
     const uiX = isMobile ? 12 : 20;
     const uiYSpacing = isMobile ? 22 : 28;
     const uiY = isMobile ? 14 : 22;
     
-    this.scoreText = this.add.text(uiX, uiY, 'SCORE: 0', createModernTextStyle(fontSize, '#ffffff', '600'))
-      .setDepth(1000);
+    this.scoreText = createRexLabel(this, uiX, uiY, 'SCORE: 0', {
+      fontSize: fontSize,
+      color: MODERN_COLORS.textAccent,
+      backgroundColor: null
+    });
+    this.scoreText.setOrigin(0, 0);
 
-    this.stageText = this.add.text(uiX, uiY + uiYSpacing, 'STAGE: 1', createModernTextStyle(fontSize, '#ffffff', '600'))
-      .setDepth(1000);
+    this.stageText = createRexLabel(this, uiX, uiY + uiYSpacing, 'STAGE: 1', {
+      fontSize: fontSize,
+      color: MODERN_COLORS.textAccent,
+      backgroundColor: null
+    });
+    this.stageText.setOrigin(0, 0);
 
-    this.timeText = this.add.text(uiX, uiY + uiYSpacing * 2, 'TIME: 00:00', createModernTextStyle(fontSize, '#ffffff', '500'))
-      .setDepth(1000);
+    this.timeText = createRexLabel(this, uiX, uiY + uiYSpacing * 2, 'TIME: 00:00', {
+      fontSize: fontSize,
+      color: MODERN_COLORS.textSecondary,
+      backgroundColor: null
+    });
+    this.timeText.setOrigin(0, 0);
 
     // Health display
     const healthX = isMobile ? width - 12 : width - 20;
     const healthY = uiY;
-    this.healthText = this.add.text(healthX, healthY, `HP: ${this.playerHealth}/${this.maxHealth}`, 
-      createModernTextStyle(fontSize, '#ffffff', '600'))
-      .setOrigin(1, 0)
-      .setDepth(1000);
+    this.healthText = createRexLabel(this, healthX, healthY, `HP: ${this.playerHealth}/${this.maxHealth}`, {
+      fontSize: fontSize,
+      color: MODERN_COLORS.textAccent,
+      backgroundColor: null
+    });
+    this.healthText.setOrigin(1, 0);
 
     // Weapon display
     const weaponX = isMobile ? width - 12 : width - 20;
     const weaponY = uiY + uiYSpacing;
-    this.weaponText = this.add.text(weaponX, weaponY, `WP: ${this.currentWeapon.name}`, 
-      createModernTextStyle(isMobile ? 12 : 16, '#ffffff', '500'))
-      .setOrigin(1, 0)
-      .setDepth(1000);
+    this.weaponText = createRexLabel(this, weaponX, weaponY, `WP: ${this.currentWeapon.name}`, {
+      fontSize: isMobile ? 12 : 16,
+      color: MODERN_COLORS.textSecondary,
+      backgroundColor: null
+    });
+    this.weaponText.setOrigin(1, 0);
 
     // Phaser 입력 시스템 완전 비활성화 (DOM 이벤트만 사용)
     this.input.enabled = false;
@@ -535,6 +591,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.stageText.setText(`STAGE: ${this.currentStage}`);
+
+    // 배경 업데이트 (스테이지에 따라)
+    const { width, height } = this.cameras.main;
+    this.updateBackground(width, height);
 
     // Spawn enemies in formation
     this.spawnEnemyFormation();
@@ -900,8 +960,11 @@ export class GameScene extends Phaser.Scene {
       
       // Show health restored message - Modern style
       const { width, height } = this.cameras.main;
-      const restoreText = this.add.text(width / 2, height / 2, 'HEALTH RESTORED', createModernTextStyle(isMobile ? 32 : 40, '#ffffff', '700'))
-        .setOrigin(0.5);
+      const restoreText = createRexLabel(this, width / 2, height / 2, 'HEALTH RESTORED', {
+        fontSize: isMobile ? 32 : 40,
+        color: '#ffffff',
+        backgroundColor: null
+      });
       
       this.time.delayedCall(1000, () => {
         restoreText.destroy();
@@ -955,17 +1018,26 @@ export class GameScene extends Phaser.Scene {
     const overlay = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.8);
     overlay.setDepth(1000);
     
-    // Selection panel
+    // Selection panel - Rex UI
     const panelWidth = isMobile ? width * 0.99 : width * 0.9;
     const panelHeight = isMobile ? height * 0.80 : height * 0.6;
-    const panel = createModernPanel(this, width / 2, height / 2, panelWidth, panelHeight, 0.95);
-    panel.setStrokeStyle(3, MODERN_COLORS.accentPrimary, 1);
+    const panel = createRexPanel(this, width / 2, height / 2, panelWidth, panelHeight, {
+      backgroundColor: 0x0a0a0a,
+      borderColor: MODERN_COLORS.accentPrimary,
+      borderWidth: 3,
+      alpha: 0.95,
+      cornerRadius: 10
+    });
     panel.setDepth(1001);
     
-    // Title
+    // Title - Rex UI
     const titleY = isMobile ? height * 0.22 : height * 0.25;
-    const title = this.add.text(width / 2, titleY, 'SELECT ITEM', createModernTextStyle(isMobile ? 24 : 40, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(1002);
+    const title = createRexLabel(this, width / 2, titleY, 'SELECT ITEM', {
+      fontSize: isMobile ? 24 : 40,
+      color: '#ffffff',
+      backgroundColor: null
+    });
+    title.setDepth(1002);
     
     // Item cards
     const itemButtons = [];
@@ -1014,31 +1086,47 @@ export class GameScene extends Phaser.Scene {
           ease: 'Sine.easeInOut'
         });
         
-      const numText = this.add.text(x, y - cardHeight * 0.38, `${index + 1}`, createModernTextStyle(isMobile ? 16 : 26, '#ffffff', '700'))
-          .setOrigin(0.5).setDepth(1003);
+      // 아이템 카드 텍스트 - Rex UI
+      const numText = createRexLabel(this, x, y - cardHeight * 0.38, `${index + 1}`, {
+        fontSize: isMobile ? 16 : 26,
+        color: '#ffffff',
+        backgroundColor: null
+      });
+      numText.setDepth(1003);
         
-      const nameText = this.add.text(x, y + cardHeight * 0.12, itemType.name, createModernTextStyle(isMobile ? 10 : 18, `#${itemType.color.toString(16).padStart(6, '0')}`, '600'))
-          .setOrigin(0.5).setDepth(1003)
-          .setWordWrapWidth(cardWidth * 0.85);
+      const nameText = createRexLabel(this, x, y + cardHeight * 0.12, itemType.name, {
+        fontSize: isMobile ? 10 : 18,
+        color: `#${itemType.color.toString(16).padStart(6, '0')}`,
+        backgroundColor: null
+      });
+      nameText.setDepth(1003);
+      if (nameText.childrenMap && nameText.childrenMap.text) {
+        nameText.childrenMap.text.setWordWrapWidth(cardWidth * 0.85);
+      }
         
         const description = itemType.description || 'UPGRADE';
-      const descText = this.add.text(x, y + cardHeight * 0.32, description, createModernTextStyle(isMobile ? 8 : 12, '#ffffff', '400'))
-          .setOrigin(0.5).setDepth(1003)
-          .setAlign('center')
-          .setWordWrapWidth(cardWidth * 0.8);
+      const descText = createRexLabel(this, x, y + cardHeight * 0.32, description, {
+        fontSize: isMobile ? 8 : 12,
+        color: '#ffffff',
+        backgroundColor: null
+      });
+      descText.setDepth(1003);
+      if (descText.childrenMap && descText.childrenMap.text) {
+        descText.childrenMap.text.setAlign('center');
+        descText.childrenMap.text.setWordWrapWidth(cardWidth * 0.8);
+      }
         
       itemButtons.push({ card, icon, nameText, descText, numText, itemType });
     });
     
-    // Instructions
+    // Instructions - Rex UI
     const instructionY = isMobile ? height * 0.88 : height * 0.75;
-    const instructionText = this.add.text(
-      width / 2, 
-      instructionY, 
-      this.useAISelection ? 'AI is selecting...' : 'Tap to select', 
-      createModernTextStyle(isMobile ? 12 : 16, '#ffffff', '500')
-    )
-      .setOrigin(0.5).setDepth(1003);
+    const instructionText = createRexLabel(this, width / 2, instructionY, this.useAISelection ? 'AI is selecting...' : 'Tap to select', {
+      fontSize: isMobile ? 12 : 16,
+      color: '#ffffff',
+      backgroundColor: null
+    });
+    instructionText.setDepth(1003);
     
     // AI 선택 모드에서는 수동 선택 비활성화
     let onItemTouch = null;
@@ -1335,9 +1423,12 @@ export class GameScene extends Phaser.Scene {
                 try {
                   const selectionText = useRandom ? '🎲 RANDOM SELECTED' : '✓ AI SELECTED';
                   this.itemSelectionUI.instructionText.setText(`${selectionText}: ${selectedItem.name}`);
-                  this.itemSelectionUI.instructionText.setColor(`#${selectedItem.color.toString(16).padStart(6, '0')}`);
-                  const fontSize = this.scale.width < 768 ? 14 : 18;
-                  this.itemSelectionUI.instructionText.setFontSize(fontSize);
+                  // Rex UI Label의 setColor는 childrenMap.text를 통해 접근
+                  if (this.itemSelectionUI.instructionText.childrenMap && this.itemSelectionUI.instructionText.childrenMap.text) {
+                    this.itemSelectionUI.instructionText.childrenMap.text.setColor(`#${selectedItem.color.toString(16).padStart(6, '0')}`);
+                    const fontSize = this.scale.width < 768 ? 14 : 18;
+                    this.itemSelectionUI.instructionText.childrenMap.text.setFontSize(fontSize);
+                  }
                 } catch (error) {
                   console.warn('Error updating instruction text:', error);
                 }
@@ -1501,8 +1592,12 @@ export class GameScene extends Phaser.Scene {
     
     // Show selection effect - Modern style
     const { width, height } = this.cameras.main;
-    const effectText = this.add.text(width / 2, height / 2, `${itemType.name} SELECTED`, createModernTextStyle(isMobile ? 28 : 36, `#${itemType.color.toString(16).padStart(6, '0')}`, '700'))
-      .setOrigin(0.5).setDepth(1000);
+    const effectText = createRexLabel(this, width / 2, height / 2, `${itemType.name} SELECTED`, {
+      fontSize: isMobile ? 28 : 36,
+      color: `#${itemType.color.toString(16).padStart(6, '0')}`,
+      backgroundColor: null
+    });
+    effectText.setDepth(1000);
     
     this.tweens.add({
       targets: effectText,
@@ -1531,7 +1626,10 @@ export class GameScene extends Phaser.Scene {
     if (this.activeEffect === 'upgradeWeapon') {
       this.currentWeapon = this.baseWeapon;
       this.weaponText.setText(`WP: ${this.currentWeapon.name}`);
-      this.weaponText.setColor(`#${this.currentWeapon.color.toString(16).padStart(6, '0')}`);
+      // Rex UI Label의 setColor는 childrenMap.text를 통해 접근
+      if (this.weaponText.childrenMap && this.weaponText.childrenMap.text) {
+        this.weaponText.childrenMap.text.setColor(`#${this.currentWeapon.color.toString(16).padStart(6, '0')}`);
+      }
     }
     
     if (this.activeEffect === 'increaseFireRate') {
@@ -1596,7 +1694,10 @@ export class GameScene extends Phaser.Scene {
       this.weaponLevel = currentIndex + 1;
       
       this.weaponText.setText(`WP: ${this.currentWeapon.name}`);
-      this.weaponText.setColor(`#${this.currentWeapon.color.toString(16).padStart(6, '0')}`);
+      // Rex UI Label의 setColor는 childrenMap.text를 통해 접근
+      if (this.weaponText.childrenMap && this.weaponText.childrenMap.text) {
+        this.weaponText.childrenMap.text.setColor(`#${this.currentWeapon.color.toString(16).padStart(6, '0')}`);
+      }
       
       this.showItemMessage('WEAPON PERMANENTLY UPGRADED!', this.currentWeapon.color);
     }
@@ -1819,8 +1920,11 @@ export class GameScene extends Phaser.Scene {
 
   showItemMessage(text, color) {
     const { width, height } = this.cameras.main;
-    const message = this.add.text(width / 2, height * 0.3, text, createModernTextStyle(isMobile ? 24 : 28, `#${color.toString(16).padStart(6, '0')}`, '700'))
-      .setOrigin(0.5);
+    const message = createRexLabel(this, width / 2, height * 0.3, text, {
+      fontSize: isMobile ? 24 : 28,
+      color: `#${color.toString(16).padStart(6, '0')}`,
+      backgroundColor: null
+    });
     
     this.tweens.add({
       targets: message,
@@ -1896,8 +2000,11 @@ export class GameScene extends Phaser.Scene {
     
     // Stage clear message - Modern style
     const { width, height } = this.cameras.main;
-    const clearText = this.add.text(width / 2, height / 2, `STAGE ${this.currentStage} CLEAR`, createModernTextStyle(isMobile ? 40 : 56, '#ffffff', '700'))
-      .setOrigin(0.5);
+    const clearText = createRexLabel(this, width / 2, height / 2, `STAGE ${this.currentStage} CLEAR`, {
+      fontSize: isMobile ? 40 : 56,
+      color: '#ffffff',
+      backgroundColor: null
+    });
     
     // Animated glow
     this.tweens.add({
@@ -1945,16 +2052,62 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  createUIPanel(width, height) {
-    // Top panel - Modern design (behind text)
-    const topPanelHeight = isMobile ? 65 : 110;
-    const topPanel = createModernPanel(this, width / 2, topPanelHeight / 2, width, topPanelHeight, 0.7);
-    topPanel.setDepth(100);
+  updateBackground(width, height) {
+    // 기존 배경 제거
+    if (this.backgroundImage) {
+      this.backgroundImage.destroy();
+      this.backgroundImage = null;
+    }
+    if (this.backgroundGradients) {
+      this.backgroundGradients.forEach(gradient => {
+        if (gradient && gradient.active) {
+          gradient.destroy();
+        }
+      });
+      this.backgroundGradients = null;
+    }
+
+    // 스테이지에 따라 배경 이미지 선택
+    // 스테이지 1-5: bg1, 스테이지 6-10: bg2
+    const bgKey = this.currentStage <= 5 ? 'bg1' : 'bg2';
     
-    // Bottom panel - Modern design (behind controls)
+    // 배경 이미지가 로드되어 있는지 확인
+    if (this.textures.exists(bgKey)) {
+      // 배경 이미지 생성
+      this.backgroundImage = this.add.image(width / 2, height / 2, bgKey);
+      this.backgroundImage.setDisplaySize(width, height); // 화면 크기에 맞게 조정
+      this.backgroundImage.setDepth(-20); // 가장 뒤에 배치
+      this.backgroundImage.setScrollFactor(0); // 카메라 스크롤에 영향받지 않음
+      console.log(`✓ 배경 이미지 설정: ${bgKey} (스테이지 ${this.currentStage})`);
+    } else {
+      // 이미지가 없으면 네온 그린 배경 사용 (점 효과 포함)
+      console.warn(`⚠️ 배경 이미지 ${bgKey}가 로드되지 않음. 네온 그린 배경 사용.`);
+      const bgResult = createModernBackground(this, width, height);
+      // createModernBackground는 [bg, dotGroup] 배열을 반환
+      this.backgroundGradients = bgResult;
+    }
+  }
+
+  createUIPanel(width, height) {
+    // Top panel - Rex UI
+    const topPanelHeight = isMobile ? 65 : 110;
+    createRexPanel(this, width / 2, topPanelHeight / 2, width, topPanelHeight, {
+      backgroundColor: 0x0a0a0a,
+      borderColor: 0x00ffff,
+      borderWidth: 1,
+      alpha: 0.75,
+      cornerRadius: 0
+    });
+    
+    // Bottom panel - Rex UI
     const bottomPanelHeight = isMobile ? 160 : 35;
-    const bottomPanel = createModernPanel(this, width / 2, height - bottomPanelHeight / 2, width, bottomPanelHeight, 0.7);
-    bottomPanel.setDepth(100);
+    createRexPanel(this, width / 2, height - bottomPanelHeight / 2, width, bottomPanelHeight, {
+      backgroundColor: 0x0a0a0a,
+      borderColor: 0x00ffff,
+      borderWidth: 1,
+      alpha: 0.75,
+      cornerRadius: 0
+    });
   }
 
   

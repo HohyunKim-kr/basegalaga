@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { scoreManager } from '../utils/score.js';
-import { MODERN_COLORS, createModernTextStyle, createModernButton, createModernBackground, createModernGrid } from '../utils/modernStyle.js';
+import { MODERN_COLORS, createModernBackground, createModernGrid } from '../utils/modernStyle.js';
+import { createRexButton, createRexLabel } from '../utils/rexUIHelper.js';
 import { isMobile } from '../main.js';
 
 export class GameOver extends Phaser.Scene {
@@ -43,11 +44,14 @@ export class GameOver extends Phaser.Scene {
     // Subtle grid overlay
     createModernGrid(this, width, height);
 
-    // Game Over or All Cleared Text - Modern design
+    // Game Over or All Cleared Text - Rex UI
     if (this.allCleared) {
       const titleSize = isMobile ? 40 : 56;
-      const title = this.add.text(width / 2, height * 0.10, 'ALL STAGES CLEARED', createModernTextStyle(titleSize, '#ffffff', '700'))
-        .setOrigin(0.5);
+      const title = createRexLabel(this, width / 2, height * 0.10, 'ALL STAGES CLEARED', {
+        fontSize: titleSize,
+        color: '#ffffff',
+        backgroundColor: null
+      });
       
       this.tweens.add({
         targets: title,
@@ -58,8 +62,11 @@ export class GameOver extends Phaser.Scene {
       });
     } else {
       const titleSize = isMobile ? 52 : 72;
-      const title = this.add.text(width / 2, height * 0.10, 'GAME OVER', createModernTextStyle(titleSize, '#ffffff', '700'))
-        .setOrigin(0.5);
+      const title = createRexLabel(this, width / 2, height * 0.10, 'GAME OVER', {
+        fontSize: titleSize,
+        color: '#ffffff',
+        backgroundColor: null
+      });
       
       this.tweens.add({
         targets: title,
@@ -70,60 +77,81 @@ export class GameOver extends Phaser.Scene {
       });
     }
 
-    // Stats - Modern, clean layout
+    // Stats - Rex UI
     const statsY = isMobile ? height * 0.20 : height * 0.22;
     const statsSpacing = isMobile ? 24 : 32;
     
-    this.add.text(width / 2, statsY, `STAGE: ${this.stage}/10`, createModernTextStyle(isMobile ? 18 : 24, '#ffffff', '600'))
-      .setOrigin(0.5);
+    createRexLabel(this, width / 2, statsY, `STAGE: ${this.stage}/10`, {
+      fontSize: isMobile ? 18 : 24,
+      color: '#ffffff',
+      backgroundColor: null
+    });
 
     const minutes = Math.floor(this.elapsedTime / 60000);
     const seconds = Math.floor((this.elapsedTime % 60000) / 1000);
-    this.add.text(width / 2, statsY + statsSpacing, `TIME: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`, createModernTextStyle(isMobile ? 18 : 24, '#ffffff', '500'))
-      .setOrigin(0.5);
+    createRexLabel(this, width / 2, statsY + statsSpacing, `TIME: ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`, {
+      fontSize: isMobile ? 18 : 24,
+      color: '#ffffff',
+      backgroundColor: null
+    });
 
-    // Score Display - Modern, prominent
-    this.add.text(width / 2, statsY + statsSpacing * 2, `SCORE: ${this.finalScore.toLocaleString()}`, createModernTextStyle(isMobile ? 36 : 48, '#ffffff', '700'))
-      .setOrigin(0.5);
+    // Score Display - Rex UI
+    createRexLabel(this, width / 2, statsY + statsSpacing * 2, `SCORE: ${this.finalScore.toLocaleString()}`, {
+      fontSize: isMobile ? 36 : 48,
+      color: MODERN_COLORS.textAccent,
+      backgroundColor: null
+    });
 
     if (this.baseScore !== this.finalScore) {
-      this.add.text(width / 2, statsY + statsSpacing * 3, `BASE: ${this.baseScore.toLocaleString()} + BONUS`, createModernTextStyle(isMobile ? 14 : 18, '#ffffff', '500'))
-        .setOrigin(0.5);
+      createRexLabel(this, width / 2, statsY + statsSpacing * 3, `BASE: ${this.baseScore.toLocaleString()} + BONUS`, {
+        fontSize: isMobile ? 14 : 18,
+        color: '#ffffff',
+        backgroundColor: null
+      });
     }
 
     // New Record indicator
     if (this.finalScore === this.bestScore && this.finalScore > 0) {
-      const recordText = this.add.text(width / 2, statsY + statsSpacing * 4, 'NEW RECORD!', createModernTextStyle(isMobile ? 24 : 32, '#ffffff', '700'))
-        .setOrigin(0.5);
+      const recordText = createRexLabel(this, width / 2, statsY + statsSpacing * 4, 'NEW RECORD!', {
+        fontSize: isMobile ? 24 : 32,
+        color: MODERN_COLORS.textAccent,
+        backgroundColor: null
+      });
       
       this.tweens.add({
         targets: recordText,
-        scale: { from: 1, to: 1.05 },
+        scaleX: { from: 1, to: 1.05 },
+        scaleY: { from: 1, to: 1.05 },
         duration: 800,
         yoyo: true,
         repeat: -1
       });
     }
 
-    // Buttons - Modern design (MainMenu와 동일한 방식)
+    // Buttons - Rex UI
     const btnWidth = isMobile ? width * 0.85 : Math.min(width * 0.5, 320);
     const btnHeight = isMobile ? 56 : 64;
     const btnSpacing = isMobile ? 52 : 60;
     let btnY = isMobile ? height * 0.52 : height * 0.54;
     
     // RETRY 버튼
-    const retryBtn = createModernButton(
+    const retryBtn = createRexButton(
       this,
       width / 2,
       btnY,
       btnWidth,
       btnHeight,
-      MODERN_COLORS.buttonSuccess,
       'RETRY',
       () => {
         console.log('✅ RETRY button clicked - restarting game');
         this.cleanupButtons();
         this.scene.start('GameScene');
+      },
+      {
+        backgroundColor: 0x00ff00,
+        borderColor: 0x00ffff,
+        textColor: '#000000',
+        fontSize: isMobile ? 18 : 20
       }
     );
     if (retryBtn && retryBtn.cleanup) {
@@ -132,17 +160,22 @@ export class GameOver extends Phaser.Scene {
 
     btnY += btnSpacing;
     // SHARE 버튼
-    const shareBtn = createModernButton(
+    const shareBtn = createRexButton(
       this,
       width / 2,
       btnY,
       btnWidth,
       btnHeight,
-      MODERN_COLORS.buttonPrimary,
       'SHARE TO FARCASTER',
       async () => {
         console.log('✅ SHARE button clicked');
         await this.shareToFarcaster();
+      },
+      {
+        backgroundColor: 0x1a2a3a,
+        borderColor: 0x00ffff,
+        textColor: '#ffffff',
+        fontSize: isMobile ? 16 : 18
       }
     );
     if (shareBtn && shareBtn.cleanup) {
@@ -151,18 +184,23 @@ export class GameOver extends Phaser.Scene {
 
     btnY += btnSpacing;
     // LEADERBOARD 버튼
-    const leaderboardBtn = createModernButton(
+    const leaderboardBtn = createRexButton(
       this,
       width / 2,
       btnY,
       btnWidth,
       btnHeight,
-      MODERN_COLORS.buttonSecondary,
       'LEADERBOARD',
       () => {
         console.log('✅ LEADERBOARD button clicked - going to leaderboard');
         this.cleanupButtons();
         this.scene.start('Leaderboard');
+      },
+      {
+        backgroundColor: 0x1a2a3a,
+        borderColor: 0x00ffff,
+        textColor: '#ffffff',
+        fontSize: isMobile ? 18 : 20
       }
     );
     if (leaderboardBtn && leaderboardBtn.cleanup) {
@@ -171,18 +209,23 @@ export class GameOver extends Phaser.Scene {
 
     btnY += btnSpacing;
     // MENU 버튼
-    const menuBtn = createModernButton(
+    const menuBtn = createRexButton(
       this,
       width / 2,
       btnY,
       btnWidth,
       btnHeight,
-      0x4a5568,
       'MENU',
       () => {
         console.log('✅ MENU button clicked - going to main menu');
         this.cleanupButtons();
         this.scene.start('MainMenu');
+      },
+      {
+        backgroundColor: 0x4a5568,
+        borderColor: 0x00ffff,
+        textColor: '#ffffff',
+        fontSize: isMobile ? 18 : 20
       }
     );
     if (menuBtn && menuBtn.cleanup) {

@@ -1,4 +1,5 @@
-import { MODERN_COLORS, createModernTextStyle } from '../utils/modernStyle.js';
+import { MODERN_COLORS } from '../utils/modernStyle.js';
+import { createRexDPadButton, createRexCircleButton, activateButton, deactivateButton } from '../utils/rexUIControls.js';
 
 /**
  * 터치 컨트롤 매니저 - DOM 이벤트 직접 사용
@@ -88,157 +89,60 @@ export class TouchControlManager {
   }
   
   createVisualButtons(dpadX, dpadY, buttonSpacing, buttonSize, width, height) {
-    const color = MODERN_COLORS.accentPrimary;
-    const bgColor = 0x1a1a2e;
+    const color = MODERN_COLORS.accentPrimary; // 네온 그린
+    const bgColor = 0x0a0a0a; // 더 어두운 배경
     
-    // D-Pad 배경 원 (더 예쁜 조이스틱 느낌)
-    const dpadBgOuter = this.scene.add.circle(dpadX, dpadY, buttonSpacing + buttonSize / 2 + 8, bgColor, 0.6);
-    dpadBgOuter.setStrokeStyle(3, color, 0.4);
+    // D-Pad 배경 원 (Rex UI 스타일 - 더 예쁘게)
+    const dpadRadius = buttonSpacing + buttonSize / 2 + 8;
+    const dpadBgOuter = this.scene.rexUI.add.roundRectangle(
+      dpadX, dpadY, 
+      dpadRadius * 2, 
+      dpadRadius * 2,
+      dpadRadius,
+      bgColor, 0.7
+    );
+    dpadBgOuter.setStrokeStyle(3, color, 0.5);
     dpadBgOuter.setDepth(19998);
     dpadBgOuter.setScrollFactor(0);
     this.controlElements.push(dpadBgOuter);
     
-    const dpadBgInner = this.scene.add.circle(dpadX, dpadY, buttonSpacing + buttonSize / 2 + 3, bgColor, 0.4);
-    dpadBgInner.setStrokeStyle(2, color, 0.5);
+    // D-Pad 내부 원 (더 깊이감)
+    const dpadBgInner = this.scene.rexUI.add.roundRectangle(
+      dpadX, dpadY,
+      (dpadRadius - 5) * 2,
+      (dpadRadius - 5) * 2,
+      dpadRadius - 5,
+      bgColor, 0.5
+    );
+    dpadBgInner.setStrokeStyle(2, color, 0.6);
     dpadBgInner.setDepth(19999);
     dpadBgInner.setScrollFactor(0);
     this.controlElements.push(dpadBgInner);
     
-    // D-Pad 버튼들 (buttonAreas의 위치 사용 - 화면 안에 보장됨)
+    // D-Pad 버튼들 (Rex UI로 생성 - 더 예쁘게)
     const upArea = this.buttonAreas.find(a => a.id === 'up');
     const downArea = this.buttonAreas.find(a => a.id === 'down');
     const leftArea = this.buttonAreas.find(a => a.id === 'left');
     const rightArea = this.buttonAreas.find(a => a.id === 'right');
     
-    upArea.button = this.createRect(upArea.x, upArea.y, buttonSize, color, '↑', 'up');
-    downArea.button = this.createRect(downArea.x, downArea.y, buttonSize, color, '↓', 'down');
-    leftArea.button = this.createRect(leftArea.x, leftArea.y, buttonSize, color, '←', 'left');
-    rightArea.button = this.createRect(rightArea.x, rightArea.y, buttonSize, color, '→', 'right');
+    upArea.button = createRexDPadButton(this.scene, upArea.x, upArea.y, buttonSize, '↑', 'up');
+    downArea.button = createRexDPadButton(this.scene, downArea.x, downArea.y, buttonSize, '↓', 'down');
+    leftArea.button = createRexDPadButton(this.scene, leftArea.x, leftArea.y, buttonSize, '←', 'left');
+    rightArea.button = createRexDPadButton(this.scene, rightArea.x, rightArea.y, buttonSize, '→', 'right');
     
-    // Fire 버튼 (더 예쁘게)
+    this.controlElements.push(upArea.button, downArea.button, leftArea.button, rightArea.button);
+    
+    // Fire 버튼 (Rex UI - 더 예쁘게)
     const fireArea = this.buttonAreas.find(a => a.id === 'shoot');
-    const fireColor = MODERN_COLORS.accentWarning;
+    const fireColor = MODERN_COLORS.accentPrimary; // 네온 그린
+    fireArea.button = createRexCircleButton(this.scene, fireArea.x, fireArea.y, fireArea.radius, 'FIRE', 'shoot', fireColor);
+    this.controlElements.push(fireArea.button);
     
-    // Fire 버튼 그림자
-    const fireShadow = this.scene.add.circle(fireArea.x + 2, fireArea.y + 2, fireArea.radius, 0x000000, 0.3);
-    fireShadow.setDepth(19999);
-    fireShadow.setScrollFactor(0);
-    this.controlElements.push(fireShadow);
-    
-    // Fire 버튼 배경
-    const fireBg = this.scene.add.circle(fireArea.x, fireArea.y, fireArea.radius, fireColor, 0.9);
-    fireBg.setStrokeStyle(2, 0xffffff, 0.2);
-    fireBg.setDepth(20000);
-    fireBg.setScrollFactor(0);
-    this.controlElements.push(fireBg);
-    
-    // Fire 버튼 메인
-    const fireBtn = this.scene.add.circle(fireArea.x, fireArea.y, fireArea.radius - 3, fireColor, 1);
-    fireBtn.setStrokeStyle(4, fireColor, 1);
-    fireBtn.setDepth(20001);
-    fireBtn.setScrollFactor(0);
-    this.controlElements.push(fireBtn);
-    
-    // Fire 하이라이트
-    const fireHighlight = this.scene.add.circle(fireArea.x, fireArea.y - fireArea.radius * 0.3, fireArea.radius * 0.5, 0xffffff, 0.2);
-    fireHighlight.setDepth(20002);
-    fireHighlight.setScrollFactor(0);
-    this.controlElements.push(fireHighlight);
-    
-    const fireText = this.scene.add.text(fireArea.x, fireArea.y, 'FIRE', createModernTextStyle(12, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(20003).setScrollFactor(0);
-    this.controlElements.push(fireText);
-    
-    fireArea.buttonGroup = {
-      mainButton: fireBtn,
-      allElements: [fireShadow, fireBg, fireBtn, fireHighlight, fireText],
-      originalColor: fireColor
-    };
-    
-    // Skill 버튼 (더 예쁘게)
+    // Skill 버튼 (Rex UI - 더 예쁘게)
     const skillArea = this.buttonAreas.find(a => a.id === 'skill');
-    const skillColor = MODERN_COLORS.accentSecondary;
-    
-    // Skill 버튼 그림자
-    const skillShadow = this.scene.add.circle(skillArea.x + 2, skillArea.y + 2, skillArea.radius, 0x000000, 0.3);
-    skillShadow.setDepth(19999);
-    skillShadow.setScrollFactor(0);
-    this.controlElements.push(skillShadow);
-    
-    // Skill 버튼 배경
-    const skillBg = this.scene.add.circle(skillArea.x, skillArea.y, skillArea.radius, skillColor, 0.9);
-    skillBg.setStrokeStyle(2, 0xffffff, 0.2);
-    skillBg.setDepth(20000);
-    skillBg.setScrollFactor(0);
-    this.controlElements.push(skillBg);
-    
-    // Skill 버튼 메인
-    const skillBtn = this.scene.add.circle(skillArea.x, skillArea.y, skillArea.radius - 2, skillColor, 1);
-    skillBtn.setStrokeStyle(3, skillColor, 1);
-    skillBtn.setDepth(20001);
-    skillBtn.setScrollFactor(0);
-    this.controlElements.push(skillBtn);
-    
-    // Skill 하이라이트
-    const skillHighlight = this.scene.add.circle(skillArea.x, skillArea.y - skillArea.radius * 0.3, skillArea.radius * 0.5, 0xffffff, 0.2);
-    skillHighlight.setDepth(20002);
-    skillHighlight.setScrollFactor(0);
-    this.controlElements.push(skillHighlight);
-    
-    const skillText = this.scene.add.text(skillArea.x, skillArea.y, 'SKILL', createModernTextStyle(10, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(20003).setScrollFactor(0);
-    this.controlElements.push(skillText);
-    
-    skillArea.buttonGroup = {
-      mainButton: skillBtn,
-      allElements: [skillShadow, skillBg, skillBtn, skillHighlight, skillText],
-      originalColor: skillColor
-    };
-  }
-  
-  createRect(x, y, size, color, label, buttonId) {
-    // 그림자 효과 (더 깊은 느낌)
-    const shadow = this.scene.add.rectangle(x + 2, y + 2, size, size, 0x000000, 0.3);
-    shadow.setDepth(19999);
-    shadow.setScrollFactor(0);
-    this.controlElements.push(shadow);
-    
-    // 버튼 배경 (더 밝은 그라데이션 느낌)
-    const btnBg = this.scene.add.rectangle(x, y, size, size, color, 0.9);
-    btnBg.setStrokeStyle(2, 0xffffff, 0.2);
-    btnBg.setDepth(20000);
-    btnBg.setScrollFactor(0);
-    this.controlElements.push(btnBg);
-    
-    // 버튼 메인 (더 선명한 색상, 둥근 느낌을 위한 약간 작게)
-    const btn = this.scene.add.rectangle(x, y, size - 4, size - 4, color, 0.95);
-    btn.setStrokeStyle(3, color, 1);
-    btn.setDepth(20001);
-    btn.setScrollFactor(0);
-    this.controlElements.push(btn);
-    
-    // 내부 하이라이트 (그라데이션 느낌)
-    const highlight = this.scene.add.rectangle(x, y - size * 0.15, size - 8, size * 0.3, 0xffffff, 0.15);
-    highlight.setDepth(20002);
-    highlight.setScrollFactor(0);
-    this.controlElements.push(highlight);
-    
-    // 라벨 텍스트 (더 선명하고 큰 글씨)
-    const labelText = this.scene.add.text(x, y, label, createModernTextStyle(20, '#ffffff', '700'))
-      .setOrigin(0.5).setDepth(20003).setScrollFactor(0);
-    this.controlElements.push(labelText);
-    
-    // 버튼 참조 저장 (나중에 활성화 시 색상 변경용)
-    const buttonGroup = {
-      buttonId: buttonId,
-      originalColor: color,
-      mainButton: btn,
-      allElements: [shadow, btnBg, btn, highlight, labelText]
-    };
-    
-    btn.buttonGroup = buttonGroup;
-    
-    return buttonGroup;
+    const skillColor = MODERN_COLORS.accentTertiary; // 청록 그린
+    skillArea.button = createRexCircleButton(this.scene, skillArea.x, skillArea.y, skillArea.radius, 'SKILL', 'skill', skillColor);
+    this.controlElements.push(skillArea.button);
   }
   
   // D-Pad 영역 내에 있는지 확인
@@ -525,32 +429,14 @@ export class TouchControlManager {
     const buttonArea = this.buttonAreas.find(a => a.id === buttonId);
     if (!buttonArea) return;
     
-    const buttonGroup = buttonArea.button || buttonArea.buttonGroup;
-    if (!buttonGroup) return;
+    const button = buttonArea.button;
+    if (!button) return;
     
-    const mainButton = buttonGroup.mainButton;
-    
+    // Rex UI 버튼 활성화/비활성화
     if (isActive) {
-      // 활성화 시 더 밝게, 살짝 작아지는 효과
-      if (mainButton.setFillStyle) {
-        mainButton.setFillStyle(buttonGroup.originalColor, 1);
-      }
-      mainButton.setScale(0.92);
-      // 그림자도 더 진하게
-      if (buttonGroup.allElements && buttonGroup.allElements[0]) {
-        buttonGroup.allElements[0].setAlpha(0.5);
-      }
+      activateButton(button);
     } else {
-      // 비활성화 시 원래대로
-      if (mainButton.setFillStyle) {
-        const alpha = buttonId === 'shoot' || buttonId === 'skill' ? 1 : 0.95;
-        mainButton.setFillStyle(buttonGroup.originalColor, alpha);
-      }
-      mainButton.setScale(1);
-      // 그림자도 원래대로
-      if (buttonGroup.allElements && buttonGroup.allElements[0]) {
-        buttonGroup.allElements[0].setAlpha(0.3);
-      }
+      deactivateButton(button);
     }
   }
   
