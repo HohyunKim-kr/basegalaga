@@ -33,7 +33,7 @@ export const minikitConfig = {
     tagline: "Classic arcade shooting action on Base",
     ogTitle: "Base Galaga - MiniApp Game",
     ogDescription: "Play the classic Galaga-style shooter game on Base MiniApp",
-    ogImageUrl: `${ROOT_URL}/og-image.png`,
+    ogImageUrl: `${ROOT_URL}/main.png`,
   },
 } as const;
 

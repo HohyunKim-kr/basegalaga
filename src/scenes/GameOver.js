@@ -338,14 +338,12 @@ export class GameOver extends Phaser.Scene {
         shareText = `🚀 Base Galaga Mission Report:\nScore: ${this.finalScore.toLocaleString()}\nStage: ${this.stage}\nTime: ${timeStr}\n\nCan you beat my score?`;
       }
       
-      // 초대 링크 추가
-      const inviteLink = '\n\n🎮 Play now: basegalaga.vercel.app';
-      shareText += inviteLink;
-
       console.log('Attempting to share:', shareText);
 
-      // Use navigation utility function
-      await composeCast(shareText, ['https://basegalaga.vercel.app']);
+      // Use navigation utility function with app link included
+      // includeAppLink=true will automatically add the app URL to the cast
+      // This allows users to add the app directly from the cast
+      await composeCast(shareText, ['https://basegalaga.vercel.app'], true);
     } catch (error) {
       console.error('Share error:', error);
       alert(`Error sharing score: ${error.message}`);

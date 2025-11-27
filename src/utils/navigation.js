@@ -30,20 +30,40 @@ export async function openUrl(url) {
  * Compose a cast (post) with optional text and embeds
  * @param {string} text - The text content of the cast
  * @param {string[]} embeds - Array of URLs to embed
+ * @param {boolean} includeAppLink - Whether to include app add link in the cast
  */
-export async function composeCast(text, embeds = []) {
+export async function composeCast(text, embeds = [], includeAppLink = true) {
   try {
+    const appUrl = 'https://basegalaga.vercel.app';
+    
+    // Add app link to text if requested (for better visibility)
+    let finalText = text;
+    if (includeAppLink) {
+      const appLink = `\n\n🎮 Play Base Galaga: ${appUrl}\n➕ Add to Base: ${appUrl}`;
+      finalText = text + appLink;
+    }
+    
+    // Ensure app URL is in embeds (this enables "Add to Base" functionality)
+    // When the app URL is in embeds, Base app will show an "Add" button
+    const finalEmbeds = [...embeds];
+    if (!finalEmbeds.includes(appUrl)) {
+      finalEmbeds.push(appUrl);
+    }
+    
     if (typeof sdk !== 'undefined' && sdk && sdk.actions && sdk.actions.composeCast) {
       await sdk.actions.composeCast({
-        text: text,
-        embeds: embeds
+        text: finalText,
+        embeds: finalEmbeds
       });
-      console.log('✅ Cast composed:', text);
+      console.log('✅ Cast composed with app add link:', {
+        text: finalText,
+        embeds: finalEmbeds
+      });
     } else {
       // Fallback for browser environment
-      const shareText = embeds.length > 0 
-        ? `${text}\n\n${embeds.join('\n')}`
-        : text;
+      const shareText = finalEmbeds.length > 0 
+        ? `${finalText}\n\n${finalEmbeds.join('\n')}`
+        : finalText;
       console.log('Cast (fallback):', shareText);
       // Could also try to open Warpcast compose URL
       if (typeof window !== 'undefined') {
