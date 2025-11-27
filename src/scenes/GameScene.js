@@ -1237,27 +1237,59 @@ export class GameScene extends Phaser.Scene {
    */
   async generateAndShowSummary(gameStats) {
   try {
-    console.log('🎬 Generating game summary...', gameStats);
+    console.group('🎬 Game Summary Generation');
+    console.log('📊 Game Stats received:', {
+      stage: gameStats.currentStage,
+      score: gameStats.score,
+      baseScore: gameStats.baseScore,
+      elapsedTime: gameStats.elapsedTime,
+      enemiesKilled: gameStats.enemiesKilled,
+      allCleared: gameStats.allCleared,
+      selectedItemsHistory: {
+        count: gameStats.selectedItemsHistory?.length || 0,
+        items: gameStats.selectedItemsHistory?.map(i => `${i.stage}:${i.name}`).join(', ') || 'None'
+      }
+    });
+
+    // selectedItemsHistory 확인
+    if (!gameStats.selectedItemsHistory || gameStats.selectedItemsHistory.length === 0) {
+      console.warn('⚠️ WARNING: selectedItemsHistory is empty!');
+      console.warn('⚠️ This means no items were selected during the game.');
+      console.warn('⚠️ The AI summary will not include item selection information.');
+    }
 
     // FLock API로 요약 생성
+    console.log('🤖 Calling FlockAPI.generateGameSummary...');
     const summaryText = await this.flockAPI.generateGameSummary(gameStats);
 
-    console.log('📝 Generated summary:', summaryText);
+    console.log('✅ Generated summary (length:', summaryText?.length || 0, 'chars):');
+    console.log('📝 Summary preview:', summaryText?.substring(0, 150) || 'N/A');
 
     if (!summaryText || summaryText.trim() === '') {
+      console.error('❌ Empty summary text received!');
       throw new Error('Empty summary text');
     }
 
     // Star Wars 크롤 씬으로 전환
+    console.log('🎬 Starting GameSummaryScene...');
     this.time.delayedCall(500, () => {
-      console.log('🎬 Starting GameSummaryScene with summary:', summaryText.substring(0, 50) + '...');
-      this.scene.start('GameSummaryScene', {
-        summaryText: summaryText,
-        gameStats: gameStats
-      });
+      console.log('🎬 Transitioning to GameSummaryScene with summary:', summaryText.substring(0, 50) + '...');
+      try {
+        this.scene.start('GameSummaryScene', {
+          summaryText: summaryText,
+          gameStats: gameStats
+        });
+        console.log('✅ GameSummaryScene started successfully');
+      } catch (sceneError) {
+        console.error('❌ Error starting GameSummaryScene:', sceneError);
+        throw sceneError;
+      }
     });
+    console.groupEnd();
   } catch (error) {
     console.error('❌ Error generating summary:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.groupEnd();
     // 에러 발생 시 바로 GameOver로 (폴백 요약 사용)
     const fallbackSummary = this.flockAPI.generateFallbackSummary(gameStats);
     console.log('📝 Using fallback summary:', fallbackSummary);
@@ -1348,6 +1380,12 @@ export class GameScene extends Phaser.Scene {
    */
   async selectItemWithAI(selectedItems, instructionText, useRandom = false) {
   try {
+    console.group('🤖 AI Item Selection');
+    console.log('📦 Selected items:', selectedItems.map(i => i.name).join(', '));
+    console.log('🎲 Use random:', useRandom);
+    console.log('📊 Current stage:', this.currentStage);
+    console.log('📝 Current selectedItemsHistory length:', this.selectedItemsHistory.length);
+    
     // 랜덤 선택 모드인 경우 게임 상태 수집 생략
     let gameState = null;
     if (!useRandom) {
@@ -1363,6 +1401,7 @@ export class GameScene extends Phaser.Scene {
           scoreMultiplier: this.activeEffects.scoreMultiplier
         }
       };
+      console.log('📊 Game state for AI:', gameState);
     }
 
     // 선택 중 메시지 표시
@@ -1466,7 +1505,9 @@ export class GameScene extends Phaser.Scene {
             // 0.5초 후 자동 선택 (대기 시간 단축)
             this.time.delayedCall(500, () => {
               console.log('✓ Applying selected item:', selectedItem.name);
+              console.log('📝 selectedItemsHistory before selectItem:', this.selectedItemsHistory.length);
               this.selectItem(selectedItem);
+              console.log('📝 selectedItemsHistory after selectItem:', this.selectedItemsHistory.length);
             });
           }
         });
@@ -1474,7 +1515,9 @@ export class GameScene extends Phaser.Scene {
         // UI가 없으면 바로 선택
         console.log('UI not available, selecting immediately:', selectedItem.name);
         this.time.delayedCall(500, () => {
+          console.log('📝 selectedItemsHistory before selectItem:', this.selectedItemsHistory.length);
           this.selectItem(selectedItem);
+          console.log('📝 selectedItemsHistory after selectItem:', this.selectedItemsHistory.length);
         });
       }
     } else {
@@ -1504,9 +1547,12 @@ export class GameScene extends Phaser.Scene {
       }
       this.time.delayedCall(1000, () => {
         console.log('✓ Applying fallback item:', fallbackItem.name);
+        console.log('📝 selectedItemsHistory before selectItem:', this.selectedItemsHistory.length);
         this.selectItem(fallbackItem);
+        console.log('📝 selectedItemsHistory after selectItem:', this.selectedItemsHistory.length);
       });
     }
+    console.groupEnd();
   } catch (error) {
     console.error('❌ AI selection error:', error);
     // 에러 발생 시 스마트 폴백 선택 사용
@@ -1535,22 +1581,41 @@ export class GameScene extends Phaser.Scene {
     // 에러 발생 시 스마트 폴백 선택
     this.time.delayedCall(1000, () => {
       console.log('✓ Applying fallback item after error:', fallbackItem.name);
+      console.log('📝 selectedItemsHistory before selectItem:', this.selectedItemsHistory.length);
       this.selectItem(fallbackItem);
+      console.log('📝 selectedItemsHistory after selectItem:', this.selectedItemsHistory.length);
     });
+    console.groupEnd();
   }
 }
 
   selectItem(itemType) {
-  if (!this.itemSelectionActive) return;
-
-  // 선택한 아이템 기록 (게임 요약용)
+  // 선택한 아이템 기록 (게임 요약용) - itemSelectionActive와 무관하게 항상 기록
   if (itemType && itemType.name) {
-    this.selectedItemsHistory.push({
-      name: itemType.name,
-      stage: this.currentStage,
-      timestamp: Date.now()
-    });
-    console.log('📝 Item selected:', itemType.name, 'at stage', this.currentStage);
+    // 중복 기록 방지: 같은 스테이지에서 같은 아이템이 이미 기록되었는지 확인
+    const alreadyRecorded = this.selectedItemsHistory.some(
+      item => item.stage === this.currentStage && item.name === itemType.name
+    );
+    
+    if (!alreadyRecorded) {
+      this.selectedItemsHistory.push({
+        name: itemType.name,
+        stage: this.currentStage,
+        timestamp: Date.now()
+      });
+      console.log('📝 Item selected and recorded:', itemType.name, 'at stage', this.currentStage);
+      console.log('📝 Total items in history:', this.selectedItemsHistory.length);
+    } else {
+      console.log('⚠️ Item already recorded for this stage:', itemType.name, 'at stage', this.currentStage);
+    }
+  } else {
+    console.warn('⚠️ selectItem called with invalid itemType:', itemType);
+  }
+
+  // itemSelectionActive가 false면 UI 처리만 스킵하고 아이템 적용은 진행
+  if (!this.itemSelectionActive) {
+    console.warn('⚠️ selectItem called but itemSelectionActive is false. Applying item anyway...');
+    // 아이템 적용 로직은 계속 진행
   }
 
   // DOM 이벤트 리스너 먼저 제거 (itemSelectionUI가 null이 되기 전에)

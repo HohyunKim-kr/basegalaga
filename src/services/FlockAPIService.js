@@ -431,13 +431,58 @@ Write a creative, engaging Twitter post (tweet) about this game session. Make it
 Respond with ONLY the tweet text. No explanations, no quotes, just the tweet content.`;
 
     try {
-      // 서버 사이드 API 사용 (프로덕션에서만)
+      console.group('🎬 Generating Game Summary');
+      console.log('📊 Game Stats:', {
+        stage: currentStage,
+        score: score.toLocaleString(),
+        time: timeStr,
+        enemiesKilled: enemiesKilled,
+        itemsCount: selectedItemsHistory?.length || 0,
+        items: selectedItemsHistory?.map(i => `${i.stage}:${i.name}`).join(', ') || 'None',
+        allCleared: allCleared
+      });
+
+      // 서버 사이드 API 사용 (프로덕션 환경에서만)
       const useServerlessAPI = true;
-      const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const isLocalDev = typeof window !== 'undefined' && 
+                        (window.location.hostname === 'localhost' || 
+                         window.location.hostname === '127.0.0.1' ||
+                         window.location.hostname.includes('localhost'));
       
+      // Base 앱 환경 감지
+      const isBaseApp = typeof window !== 'undefined' && 
+                       (window.location.hostname.includes('basegalaga.vercel.app') || 
+                        window.location.hostname.includes('base.org') ||
+                        window.parent !== window); // iframe 내부인지 확인
+      
+      console.log('🌍 Environment:', {
+        hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+        isLocalDev: isLocalDev,
+        isBaseApp: isBaseApp,
+        useServerlessAPI: useServerlessAPI,
+        note: isLocalDev ? 'Local dev - using client-side API (serverless not available in Vite dev server)' : 'Production - serverless API will be used'
+      });
+      
+      // 서버리스 API 사용 (로컬 개발 환경에서는 Vite dev server가 서버리스 함수를 지원하지 않으므로 스킵)
       if (useServerlessAPI && !isLocalDev) {
         try {
-          const response = await fetch('/api/flock-summary', {
+          // Base 앱 환경에서는 절대 URL 사용 고려
+          const apiUrl = isBaseApp && typeof window !== 'undefined' && window.location.origin
+            ? `${window.location.origin}/api/flock-summary`
+            : '/api/flock-summary';
+          
+          console.log('📡 Calling serverless API:', apiUrl);
+          console.log('📦 Request payload:', {
+            promptLength: prompt.length,
+            gameStats: {
+              stage: currentStage,
+              score: score,
+              itemsCount: selectedItemsHistory?.length || 0
+            }
+          });
+          
+          const apiStartTime = performance.now();
+          const response = await fetch(apiUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -448,51 +493,99 @@ Respond with ONLY the tweet text. No explanations, no quotes, just the tweet con
             })
           });
 
+          const apiEndTime = performance.now();
+          const apiResponseTime = (apiEndTime - apiStartTime).toFixed(2);
+          console.log('📥 API Response (time:', apiResponseTime, 'ms):', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok
+          });
+
           if (response.ok) {
             const data = await response.json();
-            return data.summaryText || this.generateFallbackSummary(gameStats);
+            console.log('✅ API Success:', {
+              method: data.method,
+              summaryLength: data.summaryText?.length || 0,
+              summaryPreview: data.summaryText?.substring(0, 100) || 'N/A'
+            });
+            const summary = data.summaryText || this.generateFallbackSummary(gameStats);
+            console.groupEnd();
+            return summary;
+          } else {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.error('❌ API Error Response:', {
+              status: response.status,
+              statusText: response.statusText,
+              errorText: errorText.substring(0, 200)
+            });
+            throw new Error(`API error: ${response.status} ${response.statusText}`);
           }
         } catch (serverlessError) {
-          console.warn('Serverless API failed, falling back to client-side:', serverlessError);
+          console.error('❌ Serverless API failed:', serverlessError);
+          console.error('❌ Error details:', {
+            message: serverlessError.message,
+            stack: serverlessError.stack,
+            name: serverlessError.name
+          });
+          console.warn('⚠️ Falling back to client-side API or fallback summary...');
           // 폴백으로 클라이언트 사이드 API 시도
         }
       }
 
       // 클라이언트 사이드 API (폴백)
       if (this.apiKey && this.apiKey !== 'your_flock_api_key_here') {
-        const response = await fetch(`${this.apiBaseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`
-          },
-          body: JSON.stringify({
-            model: this.model,
-            messages: [
-              {
-                role: 'system',
-                content: 'You are a creative game journalist. Write engaging Twitter posts about games.'
-              },
-              {
-                role: 'user',
-                content: prompt
-              }
-            ],
-            temperature: 0.8,
-            max_tokens: 150
-          })
-        });
+        console.log('🔄 Trying client-side API as fallback...');
+        try {
+          const response = await fetch(`${this.apiBaseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify({
+              model: this.model,
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You are a creative game journalist. Write engaging Twitter posts about games.'
+                },
+                {
+                  role: 'user',
+                  content: prompt
+                }
+              ],
+              temperature: 0.8,
+              max_tokens: 150
+            })
+          });
 
-        if (response.ok) {
-          const data = await response.json();
-          const content = data.choices?.[0]?.message?.content || '';
-          return content.trim() || this.generateFallbackSummary(gameStats);
+          if (response.ok) {
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content || '';
+            const summary = content.trim() || this.generateFallbackSummary(gameStats);
+            console.log('✅ Client-side API success, summary length:', summary.length);
+            console.groupEnd();
+            return summary;
+          } else {
+            console.error('❌ Client-side API error:', response.status, response.statusText);
+          }
+        } catch (clientError) {
+          console.error('❌ Client-side API failed:', clientError);
         }
+      } else {
+        console.warn('⚠️ No API key available for client-side API');
       }
 
-      return this.generateFallbackSummary(gameStats);
+      // 최종 폴백: 기본 요약 생성
+      console.warn('⚠️ Using fallback summary (no AI generation)');
+      const fallbackSummary = this.generateFallbackSummary(gameStats);
+      console.log('📝 Fallback summary length:', fallbackSummary.length);
+      console.groupEnd();
+      return fallbackSummary;
     } catch (error) {
-      console.error('Error generating game summary:', error);
+      console.error('❌ Error generating game summary:', error);
+      console.error('❌ Error stack:', error.stack);
+      console.groupEnd();
       return this.generateFallbackSummary(gameStats);
     }
   }

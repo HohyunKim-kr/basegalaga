@@ -22,20 +22,46 @@ export default async function handler(req, res) {
   try {
     const { prompt, gameStats } = req.body;
 
+    // 요청 로깅
+    console.log('📥 Serverless Summary API Request received:', {
+      hasPrompt: !!prompt,
+      promptLength: prompt?.length || 0,
+      hasGameStats: !!gameStats,
+      gameStats: gameStats ? {
+        stage: gameStats.currentStage,
+        score: gameStats.score,
+        itemsCount: gameStats.selectedItemsHistory?.length || 0,
+        items: gameStats.selectedItemsHistory?.map(i => `${i.stage}:${i.name}`).join(', ') || 'None',
+        enemiesKilled: gameStats.enemiesKilled,
+        allCleared: gameStats.allCleared
+      } : null
+    });
+
     // API 키는 서버 사이드 환경 변수에서 가져오기
     const apiKey = process.env.FLOCK_API_KEY;
     
     if (!apiKey) {
-      console.error('FLOCK_API_KEY is not set in environment variables');
+      console.error('❌ FLOCK_API_KEY is not set in environment variables');
+      console.error('⚠️ Please set FLOCK_API_KEY in Vercel environment variables');
       // 폴백: 기본 요약 생성
+      const fallbackSummary = generateFallbackSummary(gameStats);
       return res.status(200).json({ 
-        summaryText: generateFallbackSummary(gameStats),
+        summaryText: fallbackSummary,
         method: 'fallback',
-        reason: 'API key not configured'
+        reason: 'API key not configured',
+        debug: {
+          envCheck: 'FLOCK_API_KEY environment variable is missing',
+          suggestion: 'Set FLOCK_API_KEY in Vercel project settings'
+        }
       });
     }
 
+    console.log('✅ API key found (length:', apiKey.length, 'chars)');
+    console.log('📝 Prompt preview (first 200 chars):', prompt?.substring(0, 200) || 'N/A');
+
     // FLock API 호출
+    console.log('🌐 Calling Flock API for summary generation...');
+    const apiStartTime = Date.now();
     const response = await fetch('https://api.flock.io/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -59,28 +85,52 @@ export default async function handler(req, res) {
       })
     });
 
+    const apiEndTime = Date.now();
+    const apiResponseTime = apiEndTime - apiStartTime;
+
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      console.error('FLock API error:', response.status, errorText);
+      console.error('❌ FLock API error:', response.status, errorText);
+      console.error('⏱️ Response time:', apiResponseTime, 'ms');
       
       // 폴백: 기본 요약 생성
+      const fallbackSummary = generateFallbackSummary(gameStats);
+      console.log('🔄 Using fallback summary, length:', fallbackSummary.length);
       return res.status(200).json({
-        summaryText: generateFallbackSummary(gameStats),
+        summaryText: fallbackSummary,
         method: 'fallback',
-        reason: `API error: ${response.status}`
+        reason: `API error: ${response.status}`,
+        debug: {
+          status: response.status,
+          errorText: errorText.substring(0, 200),
+          responseTime: apiResponseTime
+        }
       });
     }
 
     const data = await response.json();
+    console.log('✅ Flock API response received (time:', apiResponseTime, 'ms)');
+    console.log('📦 Response data preview:', JSON.stringify(data, null, 2).substring(0, 500));
     
     // 응답 파싱
     const content = data.choices?.[0]?.message?.content || '';
+    console.log('📄 Parsed content:', content);
     const summaryText = content.trim() || generateFallbackSummary(gameStats);
+    
+    console.log('✅ Summary generated:', {
+      method: 'ai',
+      summaryLength: summaryText.length,
+      summaryPreview: summaryText.substring(0, 100)
+    });
     
     return res.status(200).json({
       summaryText: summaryText,
       method: 'ai',
-      rawResponse: data
+      rawResponse: data,
+      debug: {
+        responseTime: apiResponseTime,
+        contentLength: content.length
+      }
     });
 
   } catch (error) {
