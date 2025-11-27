@@ -100,17 +100,31 @@ Respond with ONLY the number (1, 2, or 3) of the best item to choose. No explana
     // 서버 사이드 API 사용 (보안 강화)
     const useServerlessAPI = true; // 서버리스 함수 사용 여부
     
+    // Base 앱 환경 확인
+    const isBaseApp = typeof window !== 'undefined' && 
+                     (window.location.hostname.includes('basegalaga.vercel.app') || 
+                      window.location.hostname.includes('base.org') ||
+                      window.parent !== window); // iframe 내부인지 확인
+    
     if (useServerlessAPI) {
       try {
         console.group('🟢 Serverless API Request');
         console.log('🌐 Endpoint: /api/flock-select');
+        console.log('🌍 Environment:', {
+          hostname: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
+          isBaseApp: isBaseApp,
+          protocol: typeof window !== 'undefined' ? window.location.protocol : 'unknown'
+        });
         console.log('📦 Request Data:', { gameState, items: items.map(i => i.name) });
         console.groupEnd();
         
         const apiStartTime = performance.now();
         
         // Vercel 서버리스 함수 호출
-        const response = await fetch('/api/flock-select', {
+        const apiUrl = '/api/flock-select';
+        console.log('📡 Fetching:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -121,8 +135,13 @@ Respond with ONLY the number (1, 2, or 3) of the best item to choose. No explana
           })
         });
 
+        console.log('📥 Response status:', response.status, response.statusText);
+        console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+
         if (!response.ok) {
-          throw new Error(`Serverless API error: ${response.status} ${response.statusText}`);
+          const errorText = await response.text().catch(() => 'Unknown error');
+          console.error('❌ API Error Response:', errorText);
+          throw new Error(`Serverless API error: ${response.status} ${response.statusText} - ${errorText}`);
         }
 
         const data = await response.json();
@@ -144,9 +163,21 @@ Respond with ONLY the number (1, 2, or 3) of the best item to choose. No explana
         if (data.selectedIndex >= 0 && data.selectedIndex < items.length) {
           console.log('✅ Selected index:', data.selectedIndex, 'Item:', items[data.selectedIndex]?.name, `(${data.method})`);
           return data.selectedIndex;
+        } else {
+          console.warn('⚠️ Invalid selectedIndex from serverless API:', data.selectedIndex, 'Items length:', items.length);
+          console.warn('⚠️ API Response:', data);
+          // 유효하지 않은 인덱스인 경우 스마트 폴백 사용
+          const fallbackIndex = this.fallbackSelection(items, gameState);
+          console.log('🔄 Using smart fallback:', fallbackIndex, 'Item:', items[fallbackIndex]?.name);
+          return fallbackIndex;
         }
       } catch (error) {
         console.error('❌ Serverless API error:', error);
+        console.error('❌ Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        });
         // 폴백으로 클라이언트 사이드 API 시도
         console.warn('⚠️ Falling back to client-side API...');
       }
@@ -263,12 +294,13 @@ Respond with ONLY the number (1, 2, or 3) of the best item to choose. No explana
       
       if (choice >= 1 && choice <= items.length) {
         const selectedIndex = choice - 1; // 0-based index
-        console.log('AI selected index:', selectedIndex, 'Item:', items[selectedIndex]?.name);
+        console.log('✅ AI selected index:', selectedIndex, 'Item:', items[selectedIndex]?.name);
         return selectedIndex;
       } else {
-        console.warn('Invalid selection from AI, using fallback');
+        console.warn('⚠️ Invalid selection from AI:', choice, 'Expected: 1-' + items.length);
+        console.warn('⚠️ Raw response data:', JSON.stringify(data, null, 2));
         const fallbackIndex = this.fallbackSelection(items, gameState);
-        console.log('Fallback selected index:', fallbackIndex, 'Item:', items[fallbackIndex]?.name);
+        console.log('🔄 Using smart fallback:', fallbackIndex, 'Item:', items[fallbackIndex]?.name);
         return fallbackIndex;
       }
     } catch (error) {
@@ -285,19 +317,34 @@ Respond with ONLY the number (1, 2, or 3) of the best item to choose. No explana
   parseSelection(data) {
     try {
       console.group('🔍 Parsing AI Response');
+      console.log('📦 Full response data:', JSON.stringify(data, null, 2));
       
       // FLock API 응답 형식에 따라 파싱
       // 일반적인 형식: { choices: [{ message: { content: "1" } }] }
-      const content = data.choices?.[0]?.message?.content || 
-                     data.content || 
-                     data.response ||
-                     '';
+      let content = '';
+      
+      // 다양한 응답 형식 지원
+      if (data.choices && Array.isArray(data.choices) && data.choices.length > 0) {
+        content = data.choices[0]?.message?.content || 
+                  data.choices[0]?.delta?.content ||
+                  data.choices[0]?.text ||
+                  '';
+      } else if (data.content) {
+        content = data.content;
+      } else if (data.response) {
+        content = data.response;
+      } else if (data.text) {
+        content = data.text;
+      } else if (typeof data === 'string') {
+        content = data;
+      }
       
       console.log('📄 Content to parse:', content);
       console.log('📄 Content type:', typeof content);
+      console.log('📄 Content length:', content.length);
       
-      // 숫자만 추출
-      const match = content.match(/\d+/);
+      // 숫자만 추출 (여러 숫자가 있으면 첫 번째 숫자 사용)
+      const match = content.toString().trim().match(/\d+/);
       console.log('🔢 Number match:', match);
       
       if (match) {
@@ -308,10 +355,35 @@ Respond with ONLY the number (1, 2, or 3) of the best item to choose. No explana
       }
       
       console.warn('⚠️ No number found in content');
+      console.warn('⚠️ Trying alternative parsing methods...');
+      
+      // 대안: JSON 파싱 시도
+      try {
+        const jsonParsed = JSON.parse(content);
+        if (typeof jsonParsed === 'number') {
+          console.log('✅ Found number in JSON:', jsonParsed);
+          console.groupEnd();
+          return jsonParsed;
+        }
+        if (jsonParsed.selectedIndex !== undefined) {
+          console.log('✅ Found selectedIndex in JSON:', jsonParsed.selectedIndex);
+          console.groupEnd();
+          return jsonParsed.selectedIndex + 1; // 0-based to 1-based
+        }
+        if (jsonParsed.choice !== undefined) {
+          console.log('✅ Found choice in JSON:', jsonParsed.choice);
+          console.groupEnd();
+          return jsonParsed.choice;
+        }
+      } catch (jsonError) {
+        console.log('ℹ️ Not a JSON string, continuing...');
+      }
+      
       console.groupEnd();
       return null;
     } catch (error) {
       console.error('❌ Error parsing AI response:', error);
+      console.error('❌ Error stack:', error.stack);
       console.groupEnd();
       return null;
     }

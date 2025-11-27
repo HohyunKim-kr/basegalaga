@@ -1478,30 +1478,64 @@ export class GameScene extends Phaser.Scene {
         });
       }
     } else {
-      // 폴백: 첫 번째 아이템 선택
+      // 폴백: 스마트 폴백 선택 사용 (첫 번째 아이템 고정 방지)
+      console.warn('⚠️ Invalid selectedIndex, using smart fallback');
+      const gameState = {
+        currentStage: this.currentStage,
+        playerHealth: this.playerHealth,
+        maxHealth: this.maxHealth,
+        score: this.score,
+        weaponLevel: this.weaponLevel,
+        fireRate: this.fireRate,
+        activeEffects: {
+          shield: this.activeEffects.shield,
+          scoreMultiplier: this.activeEffects.scoreMultiplier
+        }
+      };
+      const fallbackIndex = this.flockAPI.fallbackSelection(selectedItems, gameState);
+      const fallbackItem = selectedItems[fallbackIndex];
+      
       if (this.itemSelectionUI && this.itemSelectionUI.instructionText && this.itemSelectionUI.instructionText.active) {
         try {
-          this.itemSelectionUI.instructionText.setText('AI selection failed, using fallback');
+          this.itemSelectionUI.instructionText.setText(`⚠️ Using smart fallback: ${fallbackItem.name}`);
         } catch (error) {
           console.warn('Error updating instruction text:', error);
         }
       }
       this.time.delayedCall(1000, () => {
-        this.selectItem(selectedItems[0]);
+        console.log('✓ Applying fallback item:', fallbackItem.name);
+        this.selectItem(fallbackItem);
       });
     }
   } catch (error) {
-    console.error('AI selection error:', error);
+    console.error('❌ AI selection error:', error);
+    // 에러 발생 시 스마트 폴백 선택 사용
+    const gameState = {
+      currentStage: this.currentStage,
+      playerHealth: this.playerHealth,
+      maxHealth: this.maxHealth,
+      score: this.score,
+      weaponLevel: this.weaponLevel,
+      fireRate: this.fireRate,
+      activeEffects: {
+        shield: this.activeEffects.shield,
+        scoreMultiplier: this.activeEffects.scoreMultiplier
+      }
+    };
+    const fallbackIndex = this.flockAPI.fallbackSelection(selectedItems, gameState);
+    const fallbackItem = selectedItems[fallbackIndex];
+    
     if (this.itemSelectionUI && this.itemSelectionUI.instructionText && this.itemSelectionUI.instructionText.active) {
       try {
-        this.itemSelectionUI.instructionText.setText('AI error, using fallback');
+        this.itemSelectionUI.instructionText.setText(`⚠️ AI error, using fallback: ${fallbackItem.name}`);
       } catch (error) {
         console.warn('Error updating instruction text:', error);
       }
     }
-    // 에러 발생 시 폴백 선택
+    // 에러 발생 시 스마트 폴백 선택
     this.time.delayedCall(1000, () => {
-      this.selectItem(selectedItems[0]);
+      console.log('✓ Applying fallback item after error:', fallbackItem.name);
+      this.selectItem(fallbackItem);
     });
   }
 }
