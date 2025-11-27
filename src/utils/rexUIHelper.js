@@ -52,6 +52,71 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
   .setDepth(20000)
   .setScrollFactor(0);
 
+  // Rex UI 버튼을 명시적으로 interactive하게 설정
+  if (button.setInteractive) {
+    button.setInteractive();
+  }
+  
+  // Rex UI 내장 클릭 이벤트 사용 (더 정확한 클릭 감지)
+  button.on('button.click', (button, groupName, index, pointer, event) => {
+    console.log('✅ Rex UI Button clicked:', text, 'scene:', scene.scene?.key, 'index:', index);
+    try {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+    } catch (e) {}
+    
+    // 버튼 클릭 애니메이션
+    if (button && button.setScale) {
+      button.setScale(0.95);
+    }
+    
+    // 콜백 실행
+    setTimeout(() => {
+      try {
+        if (callback) {
+          callback();
+        }
+      } catch (error) {
+        console.error('Button callback error:', error);
+      }
+      if (button && button.setScale) {
+        button.setScale(1);
+      }
+    }, 50);
+  });
+  
+  // 포인터 이벤트도 추가 (Rex UI 이벤트가 작동하지 않을 경우 대비)
+  // Rex UI 버튼의 각 버튼 요소에 직접 이벤트 추가
+  if (button.buttons && button.buttons.length > 0) {
+    button.buttons.forEach((btn, idx) => {
+      if (btn && btn.setInteractive) {
+        btn.setInteractive({ useHandCursor: true });
+        btn.on('pointerdown', (pointer) => {
+          console.log('✅ Button pointerdown (direct):', text, 'scene:', scene.scene?.key, 'index:', idx);
+          try {
+            if (pointer && pointer.event) {
+              pointer.event.preventDefault();
+              pointer.event.stopPropagation();
+            }
+          } catch (e) {}
+          
+          if (callback) {
+            setTimeout(() => {
+              try {
+                callback();
+              } catch (error) {
+                console.error('Button callback error:', error);
+              }
+            }, 50);
+          }
+        });
+      }
+    });
+  }
+
   // DOM 이벤트로 클릭 처리 (Phaser 입력 시스템 비활성화 대응)
   const canvas = scene.game.canvas;
   const getPos = (event) => {
@@ -81,20 +146,33 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
 
   const isInside = (px, py) => {
     if (px === null || py === null) return false;
+    // Rex UI 버튼의 실제 bounds 계산 (약간의 여유 공간 추가)
+    const padding = 5; // 터치 영역 확장
     const bounds = {
-      left: x - width / 2,
-      right: x + width / 2,
-      top: y - height / 2,
-      bottom: y + height / 2
+      left: x - width / 2 - padding,
+      right: x + width / 2 + padding,
+      top: y - height / 2 - padding,
+      bottom: y + height / 2 + padding
     };
-    return px >= bounds.left && px <= bounds.right && py >= bounds.top && py <= bounds.bottom;
+    const inside = px >= bounds.left && px <= bounds.right && py >= bounds.top && py <= bounds.bottom;
+    if (inside) {
+      console.log('Button hit test:', { px, py, bounds, text });
+    }
+    return inside;
   };
 
   const onTouch = (event) => {
     if (!event || !canvas) return;
     
     const pos = getPos(event);
-    if (pos && isInside(pos.x, pos.y)) {
+    if (!pos) return;
+    
+    // 씬이 활성화되어 있는지 확인
+    if (!scene || !scene.scene || !scene.scene.isActive()) {
+      return;
+    }
+    
+    if (isInside(pos.x, pos.y)) {
       try {
         event.preventDefault();
         event.stopPropagation();
@@ -104,33 +182,57 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
         }
       } catch (e) {}
 
+      console.log('✅ Button clicked:', text, 'at', pos, 'scene:', scene.scene?.key);
+      
       // 버튼 클릭 애니메이션
-      button.setScale(0.95);
+      if (button && button.setScale) {
+        button.setScale(0.95);
+      }
+      
+      // 콜백 실행 (비동기로 실행하여 이벤트 처리 완료 후 실행)
       setTimeout(() => {
+        try {
+          if (callback) {
+            callback();
+          }
+        } catch (error) {
+          console.error('Button callback error:', error);
+        }
         if (button && button.setScale) {
           button.setScale(1);
         }
-        if (callback) callback();
-      }, 100);
+      }, 50);
       
       return false;
     }
   };
 
-  // DOM 이벤트 리스너 등록
+  // DOM 이벤트 리스너 등록 (더 높은 우선순위)
   const setupListeners = () => {
     if (!canvas) {
-      setTimeout(setupListeners, 100);
+      setTimeout(setupListeners, 200);
       return;
     }
     
     try {
+      // 기존 리스너 제거 (중복 방지)
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('touchstart', onTouch, { capture: true });
+        document.removeEventListener('mousedown', onTouch, { capture: true });
+      }
+      canvas.removeEventListener('touchstart', onTouch, { capture: true });
+      canvas.removeEventListener('mousedown', onTouch, { capture: true });
+      
+      // document 레벨에 먼저 등록 (최우선 처리)
       if (typeof document !== 'undefined') {
         document.addEventListener('touchstart', onTouch, { passive: false, capture: true });
         document.addEventListener('mousedown', onTouch, { capture: true });
       }
+      // canvas에도 등록 (백업)
       canvas.addEventListener('touchstart', onTouch, { passive: false, capture: true });
       canvas.addEventListener('mousedown', onTouch, { capture: true });
+      
+      console.log('✅ Button listeners added for:', text, 'bounds:', { x, y, width, height });
     } catch (error) {
       console.error('Error adding button listeners:', error);
     }
@@ -139,7 +241,7 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
   if (canvas) {
     setupListeners();
   } else {
-    setTimeout(setupListeners, 100);
+    setTimeout(setupListeners, 200);
   }
 
   // 클린업 함수

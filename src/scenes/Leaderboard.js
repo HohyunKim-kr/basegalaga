@@ -13,10 +13,12 @@ export class Leaderboard extends Phaser.Scene {
   async create() {
     const { width, height } = this.cameras.main;
 
-    // Phaser 입력 시스템 완전 비활성화 (DOM 이벤트만 사용)
-    this.input.enabled = false;
-    if (this.input.mouse) this.input.mouse.enabled = false;
-    if (this.input.touch) this.input.touch.enabled = false;
+    // Leaderboard 씬에서는 Phaser 입력 시스템 활성화 (Rex UI 버튼이 작동하려면 필요)
+    // 단, 키보드는 비활성화
+    this.input.enabled = true;
+    if (this.input.mouse) this.input.mouse.enabled = true;
+    if (this.input.touch) this.input.touch.enabled = true;
+    if (this.input.keyboard) this.input.keyboard.enabled = false; // 키보드만 비활성화
 
     // Modern gradient background
     createModernBackground(this, width, height);

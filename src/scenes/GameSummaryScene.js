@@ -19,6 +19,12 @@ export class GameSummaryScene extends Phaser.Scene {
   create() {
     const { width, height } = this.cameras.main;
     
+    // GameSummaryScene에서는 Phaser 입력 시스템 활성화 (스킵 기능을 위해 필요)
+    this.input.enabled = true;
+    if (this.input.mouse) this.input.mouse.enabled = true;
+    if (this.input.touch) this.input.touch.enabled = true;
+    if (this.input.keyboard) this.input.keyboard.enabled = false; // 키보드만 비활성화
+    
     // 검은 배경
     this.add.rectangle(width / 2, height / 2, width, height, 0x000000);
     
@@ -172,13 +178,26 @@ export class GameSummaryScene extends Phaser.Scene {
   }
 
   skipToGameOver() {
-    // GameOver 씬으로 전환 (통계 포함)
-    this.scene.start('GameOver', {
+    console.log('🎬 Transitioning to GameOver scene with stats:', {
       score: this.gameStats.score || 0,
       baseScore: this.gameStats.baseScore || this.gameStats.score || 0,
       time: this.gameStats.elapsedTime || 0,
       stage: this.gameStats.currentStage || 1,
-      allCleared: this.gameStats.allCleared || false
+      allCleared: this.gameStats.allCleared || false,
+      summaryText: this.summaryText
+    });
+    
+    // GameOver 씬으로 전환 (통계 및 요약 텍스트 포함)
+    // 약간의 딜레이를 주어 씬 전환이 확실히 이루어지도록 함
+    this.time.delayedCall(100, () => {
+      this.scene.start('GameOver', {
+        score: this.gameStats.score || 0,
+        baseScore: this.gameStats.baseScore || this.gameStats.score || 0,
+        time: this.gameStats.elapsedTime || 0,
+        stage: this.gameStats.currentStage || 1,
+        allCleared: this.gameStats.allCleared || false,
+        summaryText: this.summaryText
+      });
     });
   }
 }

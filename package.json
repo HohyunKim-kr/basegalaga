@@ -10,9 +10,11 @@
     "generate-manifest": "node scripts/generate-manifest.js"
   },
   "dependencies": {
+    "@coinbase/onchainkit": "^1.1.2",
     "@farcaster/miniapp-sdk": "^0.2.1",
     "phaser": "^3.80.1",
-    "phaser3-rex-plugins": "^1.80.17"
+    "phaser3-rex-plugins": "^1.80.17",
+    "viem": "^2.40.3"
   },
   "devDependencies": {
     "vite": "^5.0.0"

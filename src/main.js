@@ -80,8 +80,8 @@ try {
           try {
             // Use SDK's share or openUrl if available
             if (sdk.actions && sdk.actions.openUrl) {
-              await sdk.actions.openUrl({ 
-                url: `https://warpcast.com/~/compose?text=${encodeURIComponent(options.text)}` 
+              await sdk.actions.openUrl({
+                url: `https://warpcast.com/~/compose?text=${encodeURIComponent(options.text)}`
               });
             } else {
               alert(`Share: ${options.text}`);
@@ -134,9 +134,41 @@ if (typeof window !== 'undefined') {
   window.mini = mini;
 }
 
+// Get Farcaster user information
+async function getFarcasterUser() {
+  try {
+    if (typeof sdk !== 'undefined' && sdk && sdk.context) {
+      const context = await sdk.context;
+      const user = context?.user;
+
+      if (user && user.fid) {
+        return {
+          fid: user.fid,
+          username: user.username || '',
+          displayName: user.displayName || '',
+          pfpUrl: user.pfpUrl || ''
+        };
+      }
+    }
+  } catch (error) {
+    console.warn('Error getting Farcaster user:', error);
+  }
+
+  return null;
+}
+
+// Expose getFarcasterUser globally
+if (typeof window !== 'undefined') {
+  window.getFarcasterUser = getFarcasterUser;
+}
+
+// Initialize DOM-based user header
+import { initUserHeader } from './utils/domUserHeader.js';
+initUserHeader();
+
 // Detect mobile device
-const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-                 (window.innerWidth <= 768 && 'ontouchstart' in window);
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+  (window.innerWidth <= 768 && 'ontouchstart' in window);
 
 // Fully responsive - use actual viewport dimensions
 // This ensures the game fills the entire screen on any device
@@ -175,97 +207,19 @@ const config = {
     resizeInterval: 100
   },
   input: {
-    activePointers: 0, // Disable Phaser input system completely
-    keyboard: false, // Disable keyboard input completely
-    touch: false, // Disable Phaser touch input - we use DOM events
-    mouse: false // Disable Phaser mouse input - we use DOM events
+    activePointers: 3,
+    keyboard: true,
+    touch: true,
+    mouse: true
   }
 };
-
-// 전역 키보드 이벤트 완전 차단 (모바일 터치만 사용)
-if (typeof document !== 'undefined') {
-  const blockKeyboard = (event) => {
-    if (event && typeof event.preventDefault === 'function') {
-      event.preventDefault();
-    }
-    if (event && typeof event.stopPropagation === 'function') {
-      event.stopPropagation();
-    }
-    if (event && typeof event.stopImmediatePropagation === 'function') {
-      event.stopImmediatePropagation();
-    }
-    return false;
-  };
-  
-  document.addEventListener('keydown', blockKeyboard, { capture: true, passive: false });
-  document.addEventListener('keyup', blockKeyboard, { capture: true, passive: false });
-  document.addEventListener('keypress', blockKeyboard, { capture: true, passive: false });
-}
 
 // Create and start the game
 const game = new Phaser.Game(config);
 
-// Phaser 입력 시스템 완전 제거 (DOM 이벤트만 사용)
+// Phaser Input System - Keep enabled for UI scenes
 game.events.once('ready', () => {
-  // 모든 씬의 입력 시스템 비활성화
-  game.scene.scenes.forEach(scene => {
-    if (scene.input) {
-      scene.input.enabled = false;
-      if (scene.input.mouse) {
-        scene.input.mouse.enabled = false;
-        // 마우스 이벤트 콜백 제거
-        if (scene.input.mouse.onMouseDown) scene.input.mouse.onMouseDown = null;
-        if (scene.input.mouse.onMouseMove) scene.input.mouse.onMouseMove = null;
-        if (scene.input.mouse.onMouseUp) scene.input.mouse.onMouseUp = null;
-      }
-      if (scene.input.touch) {
-        scene.input.touch.enabled = false;
-        // 터치 이벤트 콜백 제거
-        if (scene.input.touch.onTouchStart) scene.input.touch.onTouchStart = null;
-        if (scene.input.touch.onTouchMove) scene.input.touch.onTouchMove = null;
-        if (scene.input.touch.onTouchEnd) scene.input.touch.onTouchEnd = null;
-        if (scene.input.touch.onTouchCancel) scene.input.touch.onTouchCancel = null;
-      }
-      if (scene.input.keyboard) scene.input.keyboard.enabled = false;
-      
-      // 입력 업데이트 함수 오버라이드
-      if (scene.input.update) {
-        const originalUpdate = scene.input.update;
-        scene.input.update = function() {
-          // 아무것도 하지 않음
-          return;
-        };
-      }
-    }
-  });
-  
-  // Phaser의 전역 입력 시스템 비활성화
-  if (game.input) {
-    game.input.enabled = false;
-    if (game.input.mouse) {
-      game.input.mouse.enabled = false;
-      if (game.input.mouse.onMouseDown) game.input.mouse.onMouseDown = null;
-      if (game.input.mouse.onMouseMove) game.input.mouse.onMouseMove = null;
-      if (game.input.mouse.onMouseUp) game.input.mouse.onMouseUp = null;
-    }
-    if (game.input.touch) {
-      game.input.touch.enabled = false;
-      if (game.input.touch.onTouchStart) game.input.touch.onTouchStart = null;
-      if (game.input.touch.onTouchMove) game.input.touch.onTouchMove = null;
-      if (game.input.touch.onTouchEnd) game.input.touch.onTouchEnd = null;
-      if (game.input.touch.onTouchCancel) game.input.touch.onTouchCancel = null;
-    }
-    if (game.input.keyboard) game.input.keyboard.enabled = false;
-    
-    // 전역 입력 업데이트 함수 오버라이드
-    if (game.input.update) {
-      const originalUpdate = game.input.update;
-      game.input.update = function() {
-        // 아무것도 하지 않음
-        return;
-      };
-    }
-  }
+  console.log('✅ Game Ready - Input System Active');
 });
 
 // Once app is ready to be displayed, call sdk.actions.ready()
@@ -285,5 +239,5 @@ setTimeout(async () => {
 }, 1000);
 
 // Export mini and isMobile for use in other modules
-export { mini, isMobile };
+export { mini, isMobile, getFarcasterUser };
 

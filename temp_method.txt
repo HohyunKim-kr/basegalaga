@@ -1,0 +1,8 @@
+// Add this method to GameScene class if it doesn't exist
+updateWeaponDisplay() {
+  if (this.weaponText) {
+    const weaponNames = ['SINGLE', 'DOUBLE', 'TRIPLE', 'SPREAD', 'LASER'];
+    const weaponName = weaponNames[this.weaponLevel] || 'SINGLE';
+    this.weaponText.setText(`WEAPON: ${weaponName}`);
+  }
+}
