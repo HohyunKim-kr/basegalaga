@@ -1226,8 +1226,8 @@ export class GameScene extends Phaser.Scene {
 
   // AI 자동 선택 활성화 시
   if (this.useAISelection) {
-    // 랜덤 선택 모드: 게임 상태와 무관하게 완전 랜덤 선택
-    const useRandomSelection = true;
+    // 모든 환경에서 AI 선택 사용 (모바일 포함)
+    const useRandomSelection = false;
     this.selectItemWithAI(selectedItems, instructionText, useRandomSelection);
   }
 }
