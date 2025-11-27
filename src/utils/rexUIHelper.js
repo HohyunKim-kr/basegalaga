@@ -198,6 +198,9 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
     return inside;
   };
 
+  // 버튼 눌림 상태 추적
+  let buttonPressed = false;
+  
   const onTouch = (event) => {
     if (!event || !canvas) return;
     
@@ -205,7 +208,7 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
     if (!pos) return;
     
     // 씬이 활성화되어 있는지 확인 (여러 방법으로 체크)
-    const sceneKey = scene?.scene?.key || scene?.sys?.settings?.key;
+    const sceneKey = scene?.scene?.key || scene?.sys?.settings?.key || scene?.sys?.scene?.key;
     const activeScene = scene?.sys?.scene?.manager?.active;
     const isSceneActive = scene?.scene?.isActive?.() || 
                          (activeScene && (activeScene.key === sceneKey || !sceneKey));
@@ -219,7 +222,76 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
       return;
     }
     
-    if (isInside(pos.x, pos.y)) {
+    const isInsideButton = isInside(pos.x, pos.y);
+    
+    // 터치/마우스/포인터 다운 이벤트 처리
+    if (event.type === 'touchstart' || event.type === 'mousedown' || event.type === 'pointerdown') {
+      if (isInsideButton) {
+        buttonPressed = true;
+        console.log('✅ Button pressed:', text, 'at', pos, 'scene:', sceneKey);
+        try {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          if (event.cancelBubble !== undefined) {
+            event.cancelBubble = true;
+          }
+        } catch (e) {}
+        
+        // 버튼 클릭 애니메이션
+        if (button && button.setScale) {
+          button.setScale(0.95);
+        }
+        return false;
+      }
+      return;
+    }
+    
+    // 터치/마우스/포인터 업 이벤트 처리 (클릭 완료)
+    if (event.type === 'touchend' || event.type === 'mouseup' || event.type === 'touchcancel' || event.type === 'pointerup') {
+      if (isInsideButton && buttonPressed) {
+        try {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          if (event.cancelBubble !== undefined) {
+            event.cancelBubble = true;
+          }
+        } catch (e) {}
+
+        console.log('✅ Button clicked:', text, 'at', pos, 'scene:', sceneKey);
+        
+        // 콜백 실행 (비동기로 실행하여 이벤트 처리 완료 후 실행)
+        setTimeout(() => {
+          try {
+            if (callback) {
+              callback();
+              console.log('✅ Callback executed for:', text);
+            } else {
+              console.warn('No callback provided for:', text);
+            }
+          } catch (error) {
+            console.error('Button callback error:', error);
+          }
+          if (button && button.setScale) {
+            button.setScale(1);
+          }
+        }, 50);
+        
+        buttonPressed = false;
+        return false;
+      } else if (buttonPressed) {
+        // 버튼 영역 밖에서 떼면 리셋
+        buttonPressed = false;
+        if (button && button.setScale) {
+          button.setScale(1);
+        }
+      }
+      return;
+    }
+    
+    // 클릭 이벤트 처리 (웹 환경)
+    if (event.type === 'click' && isInsideButton) {
       try {
         event.preventDefault();
         event.stopPropagation();
@@ -229,24 +301,17 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
         }
       } catch (e) {}
 
-      console.log('✅ Button clicked:', text, 'at', pos, 'scene:', sceneKey);
+      console.log('✅ Button clicked (click event):', text, 'at', pos, 'scene:', sceneKey);
       
-      // 버튼 클릭 애니메이션
-      if (button && button.setScale) {
-        button.setScale(0.95);
-      }
-      
-      // 콜백 실행 (비동기로 실행하여 이벤트 처리 완료 후 실행)
+      // 콜백 실행
       setTimeout(() => {
         try {
           if (callback) {
             callback();
+            console.log('✅ Callback executed for:', text);
           }
         } catch (error) {
           console.error('Button callback error:', error);
-        }
-        if (button && button.setScale) {
-          button.setScale(1);
         }
       }, 50);
       
@@ -266,26 +331,42 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
       if (typeof document !== 'undefined') {
         document.removeEventListener('touchstart', onTouch, { capture: true });
         document.removeEventListener('touchend', onTouch, { capture: true });
+        document.removeEventListener('touchcancel', onTouch, { capture: true });
         document.removeEventListener('mousedown', onTouch, { capture: true });
+        document.removeEventListener('mouseup', onTouch, { capture: true });
         document.removeEventListener('click', onTouch, { capture: true });
+        document.removeEventListener('pointerdown', onTouch, { capture: true });
+        document.removeEventListener('pointerup', onTouch, { capture: true });
       }
       canvas.removeEventListener('touchstart', onTouch, { capture: true });
       canvas.removeEventListener('touchend', onTouch, { capture: true });
+      canvas.removeEventListener('touchcancel', onTouch, { capture: true });
       canvas.removeEventListener('mousedown', onTouch, { capture: true });
+      canvas.removeEventListener('mouseup', onTouch, { capture: true });
       canvas.removeEventListener('click', onTouch, { capture: true });
+      canvas.removeEventListener('pointerdown', onTouch, { capture: true });
+      canvas.removeEventListener('pointerup', onTouch, { capture: true });
       
       // document 레벨에 먼저 등록 (최우선 처리)
       if (typeof document !== 'undefined') {
         document.addEventListener('touchstart', onTouch, { passive: false, capture: true });
         document.addEventListener('touchend', onTouch, { passive: false, capture: true });
+        document.addEventListener('touchcancel', onTouch, { passive: false, capture: true });
         document.addEventListener('mousedown', onTouch, { capture: true });
+        document.addEventListener('mouseup', onTouch, { capture: true });
         document.addEventListener('click', onTouch, { capture: true });
+        document.addEventListener('pointerdown', onTouch, { passive: false, capture: true });
+        document.addEventListener('pointerup', onTouch, { passive: false, capture: true });
       }
       // canvas에도 등록 (백업)
       canvas.addEventListener('touchstart', onTouch, { passive: false, capture: true });
       canvas.addEventListener('touchend', onTouch, { passive: false, capture: true });
+      canvas.addEventListener('touchcancel', onTouch, { passive: false, capture: true });
       canvas.addEventListener('mousedown', onTouch, { capture: true });
+      canvas.addEventListener('mouseup', onTouch, { capture: true });
       canvas.addEventListener('click', onTouch, { capture: true });
+      canvas.addEventListener('pointerdown', onTouch, { passive: false, capture: true });
+      canvas.addEventListener('pointerup', onTouch, { passive: false, capture: true });
       
       console.log('✅ Button listeners added for:', text, 'bounds:', { x, y, width, height }, 'scene:', scene?.scene?.key);
     } catch (error) {
@@ -309,11 +390,23 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
     try {
       if (typeof document !== 'undefined') {
         document.removeEventListener('touchstart', onTouch, { capture: true });
+        document.removeEventListener('touchend', onTouch, { capture: true });
+        document.removeEventListener('touchcancel', onTouch, { capture: true });
         document.removeEventListener('mousedown', onTouch, { capture: true });
+        document.removeEventListener('mouseup', onTouch, { capture: true });
+        document.removeEventListener('click', onTouch, { capture: true });
+        document.removeEventListener('pointerdown', onTouch, { capture: true });
+        document.removeEventListener('pointerup', onTouch, { capture: true });
       }
       if (canvas) {
         canvas.removeEventListener('touchstart', onTouch, { capture: true });
+        canvas.removeEventListener('touchend', onTouch, { capture: true });
+        canvas.removeEventListener('touchcancel', onTouch, { capture: true });
         canvas.removeEventListener('mousedown', onTouch, { capture: true });
+        canvas.removeEventListener('mouseup', onTouch, { capture: true });
+        canvas.removeEventListener('click', onTouch, { capture: true });
+        canvas.removeEventListener('pointerdown', onTouch, { capture: true });
+        canvas.removeEventListener('pointerup', onTouch, { capture: true });
       }
       if (button && button.destroy) {
         button.destroy();

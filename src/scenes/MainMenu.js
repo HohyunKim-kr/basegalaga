@@ -17,12 +17,24 @@ export class MainMenu extends Phaser.Scene {
     const { width, height } = this.cameras.main;
 
     // CRITICAL: Ensure input system is enabled for this scene
-    if (this.input) {
-      this.input.enabled = true;
-      if (this.input.mouse) this.input.mouse.enabled = true;
-      if (this.input.touch) this.input.touch.enabled = true;
-    }
-    console.log('MainMenu scene - Input enabled:', this.input?.enabled);
+    this.ensureInputEnabled();
+    
+    // 씬이 활성화될 때마다 입력 시스템 재활성화
+    this.events.on('wake', () => {
+      this.ensureInputEnabled();
+    });
+    
+    // 씬이 resume될 때도 입력 시스템 재활성화
+    this.events.on('resume', () => {
+      this.ensureInputEnabled();
+    });
+    
+    console.log('MainMenu scene - Input enabled:', {
+      sceneInput: this.input?.enabled,
+      touch: this.input?.touch?.enabled,
+      mouse: this.input?.mouse?.enabled,
+      gameInput: this.game.input?.enabled
+    });
 
     // 1. Premium Background
     createPremiumBackground(this, width, height);
@@ -30,8 +42,10 @@ export class MainMenu extends Phaser.Scene {
     // 2. Animated Title
     this.createTitle(width, height);
 
-    // 3. Menu Buttons
-    this.createMenuButtons(width, height);
+    // 3. Menu Buttons (약간의 딜레이를 주어 씬이 완전히 활성화된 후 생성)
+    this.time.delayedCall(200, () => {
+      this.createMenuButtons(width, height);
+    });
 
     // 4. Footer / Version
     const versionStyle = {
@@ -117,5 +131,38 @@ export class MainMenu extends Phaser.Scene {
       'HALL OF FAME',
       () => this.scene.start('Leaderboard')
     );
+  }
+
+  // 입력 시스템이 활성화되어 있는지 확인하고 필요시 재활성화
+  ensureInputEnabled() {
+    if (!this.input) return;
+    
+    this.input.enabled = true;
+    if (this.input.mouse) {
+      this.input.mouse.enabled = true;
+      this.input.mouse.disableContextMenu();
+    }
+    if (this.input.touch) {
+      this.input.touch.enabled = true;
+    }
+    if (this.input.keyboard) {
+      this.input.keyboard.enabled = true;
+    }
+    
+    // 게임 레벨에서도 입력 활성화 확인
+    if (this.game.input) {
+      this.game.input.enabled = true;
+      if (this.game.input.touch) this.game.input.touch.enabled = true;
+      if (this.game.input.mouse) this.game.input.mouse.enabled = true;
+    }
+  }
+
+  // 매 프레임마다 입력 시스템이 활성화되어 있는지 확인
+  update() {
+    // 주기적으로 입력 시스템 활성화 확인 (1초마다)
+    if (!this.lastInputCheck || this.time.now - this.lastInputCheck > 1000) {
+      this.ensureInputEnabled();
+      this.lastInputCheck = this.time.now;
+    }
   }
 }

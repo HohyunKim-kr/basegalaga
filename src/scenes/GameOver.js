@@ -47,12 +47,18 @@ export class GameOver extends Phaser.Scene {
     // CRITICAL: Ensure input system is enabled for this scene
     // 씬 전환 후 입력 시스템이 제대로 활성화되도록 강제
     this.input.enabled = true;
+    
+    // 터치 입력 활성화 (Phaser는 config에서 자동 초기화됨)
+    if (this.input.touch) {
+      this.input.touch.enabled = true;
+    } else {
+      // 터치 입력이 없으면 경고 (DOM 이벤트로 대체)
+      console.warn('[GameOver] Touch input not available, using DOM events only');
+    }
+    
     if (this.input.mouse) {
       this.input.mouse.enabled = true;
       this.input.mouse.disableContextMenu();
-    }
-    if (this.input.touch) {
-      this.input.touch.enabled = true;
     }
     if (this.input.keyboard) {
       this.input.keyboard.enabled = true;
@@ -61,9 +67,21 @@ export class GameOver extends Phaser.Scene {
     // 게임 레벨에서도 입력 활성화 확인
     if (this.game.input) {
       this.game.input.enabled = true;
-      if (this.game.input.touch) this.game.input.touch.enabled = true;
+      if (this.game.input.touch) {
+        this.game.input.touch.enabled = true;
+      }
       if (this.game.input.mouse) this.game.input.mouse.enabled = true;
     }
+    
+    // 씬이 활성화될 때마다 입력 시스템 재활성화
+    this.events.on('wake', () => {
+      this.ensureInputEnabled();
+    });
+    
+    // 씬이 resume될 때도 입력 시스템 재활성화
+    this.events.on('resume', () => {
+      this.ensureInputEnabled();
+    });
     
     console.log('GameOver scene - Input enabled:', {
       sceneInput: this.input?.enabled,
@@ -81,8 +99,23 @@ export class GameOver extends Phaser.Scene {
     // 3. Stats Panel
     this.createStatsPanel(width, height);
 
-    // 4. Action Buttons (즉시 생성 - Phaser 기본 이벤트 사용)
-    this.createButtons(width, height);
+    // 4. Action Buttons (모바일 환경에서 씬이 완전히 활성화된 후 생성)
+    // GameScene에서 전환될 때 TouchControlManager가 완전히 정리되도록 더 긴 딜레이
+    const buttonDelay = 500; // 모바일 환경을 위해 딜레이 증가
+    this.time.delayedCall(buttonDelay, () => {
+      // 씬이 여전히 활성화되어 있는지 확인
+      if (this.scene && this.scene.isActive && this.scene.isActive()) {
+        this.createButtons(width, height);
+      } else {
+        // 씬이 활성화되지 않았으면 다시 시도
+        console.log('[GameOver] Scene not active yet, retrying button creation...');
+        this.time.delayedCall(200, () => {
+          if (this.scene && this.scene.isActive && this.scene.isActive()) {
+            this.createButtons(width, height);
+          }
+        });
+      }
+    });
   }
 
   createTitle(width, height) {
@@ -242,6 +275,50 @@ export class GameOver extends Phaser.Scene {
     );
 
     console.log('[GameOver] All buttons created');
+    
+    // 버튼 참조 저장 (나중에 입력 상태 확인용)
+    this.buttonsCreated = true;
+  }
+
+  // 입력 시스템이 활성화되어 있는지 확인하고 필요시 재활성화
+  ensureInputEnabled() {
+    if (!this.input) return;
+    
+    this.input.enabled = true;
+    if (this.input.mouse) {
+      this.input.mouse.enabled = true;
+      this.input.mouse.disableContextMenu();
+    }
+    if (this.input.touch) {
+      this.input.touch.enabled = true;
+    }
+    if (this.input.keyboard) {
+      this.input.keyboard.enabled = true;
+    }
+    
+    // 게임 레벨에서도 입력 활성화 확인
+    if (this.game.input) {
+      this.game.input.enabled = true;
+      if (this.game.input.touch) this.game.input.touch.enabled = true;
+      if (this.game.input.mouse) this.game.input.mouse.enabled = true;
+    }
+  }
+
+  // 매 프레임마다 입력 시스템이 활성화되어 있는지 확인
+  update() {
+    // 주기적으로 입력 시스템 활성화 확인 (1초마다)
+    if (!this.lastInputCheck || this.time.now - this.lastInputCheck > 1000) {
+      this.ensureInputEnabled();
+      this.lastInputCheck = this.time.now;
+    }
+    
+    // 모바일 환경에서 터치 입력이 활성화되어 있는지 확인
+    if (this.input && this.input.touch) {
+      if (!this.input.touch.enabled) {
+        this.input.touch.enabled = true;
+        console.log('[GameOver] Touch input re-enabled');
+      }
+    }
   }
 
   async shareToFarcaster() {

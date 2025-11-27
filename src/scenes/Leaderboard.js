@@ -14,11 +14,17 @@ export class Leaderboard extends Phaser.Scene {
     const { width, height } = this.cameras.main;
 
     // Leaderboard 씬에서는 Phaser 입력 시스템 활성화 (Rex UI 버튼이 작동하려면 필요)
-    // 단, 키보드는 비활성화
-    this.input.enabled = true;
-    if (this.input.mouse) this.input.mouse.enabled = true;
-    if (this.input.touch) this.input.touch.enabled = true;
-    if (this.input.keyboard) this.input.keyboard.enabled = false; // 키보드만 비활성화
+    this.ensureInputEnabled();
+    
+    // 씬이 활성화될 때마다 입력 시스템 재활성화
+    this.events.on('wake', () => {
+      this.ensureInputEnabled();
+    });
+    
+    // 씬이 resume될 때도 입력 시스템 재활성화
+    this.events.on('resume', () => {
+      this.ensureInputEnabled();
+    });
 
     // Modern gradient background
     createModernBackground(this, width, height);
@@ -142,6 +148,47 @@ export class Leaderboard extends Phaser.Scene {
         fontSize: isMobile ? 18 : 20
       }
     );
+  }
+
+  // 입력 시스템이 활성화되어 있는지 확인하고 필요시 재활성화
+  ensureInputEnabled() {
+    if (!this.input) return;
+    
+    this.input.enabled = true;
+    if (this.input.mouse) {
+      this.input.mouse.enabled = true;
+      this.input.mouse.disableContextMenu();
+    }
+    if (this.input.touch) {
+      this.input.touch.enabled = true;
+    }
+    if (this.input.keyboard) {
+      this.input.keyboard.enabled = false; // 키보드는 비활성화
+    }
+    
+    // 게임 레벨에서도 입력 활성화 확인
+    if (this.game.input) {
+      this.game.input.enabled = true;
+      if (this.game.input.touch) this.game.input.touch.enabled = true;
+      if (this.game.input.mouse) this.game.input.mouse.enabled = true;
+    }
+  }
+
+  // 매 프레임마다 입력 시스템이 활성화되어 있는지 확인
+  update() {
+    // 주기적으로 입력 시스템 활성화 확인 (1초마다)
+    if (!this.lastInputCheck || this.time.now - this.lastInputCheck > 1000) {
+      this.ensureInputEnabled();
+      this.lastInputCheck = this.time.now;
+    }
+    
+    // 모바일 환경에서 터치 입력이 활성화되어 있는지 확인
+    if (this.input && this.input.touch) {
+      if (!this.input.touch.enabled) {
+        this.input.touch.enabled = true;
+        console.log('[Leaderboard] Touch input re-enabled');
+      }
+    }
   }
 }
 

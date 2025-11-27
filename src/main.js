@@ -140,83 +140,88 @@ let notificationDetails = null;
 // Initialize SDK event listeners
 function initializeSDKEvents() {
   try {
-    if (typeof sdk !== 'undefined' && sdk && sdk.events) {
-      // Listen for miniapp_added event
-      sdk.events.on('miniapp_added', (payload) => {
-        console.log('✅ Mini App added:', payload);
-        if (payload.notificationDetails) {
-          notificationDetails = {
-            url: payload.notificationDetails.url,
-            token: payload.notificationDetails.token
-          };
-          // Update global reference
+    if (typeof sdk !== 'undefined' && sdk) {
+      // SDK는 emitter를 스프레드하므로 직접 on 메서드를 사용
+      // Listen for miniAppAdded event (camelCase)
+      if (sdk.on) {
+        sdk.on('miniAppAdded', (payload) => {
+          console.log('✅ Mini App added:', payload);
+          if (payload && payload.notificationDetails) {
+            notificationDetails = {
+              url: payload.notificationDetails.url,
+              token: payload.notificationDetails.token
+            };
+            // Update global reference
+            if (typeof window !== 'undefined') {
+              window.notificationDetails = notificationDetails;
+            }
+            // Save to storage for persistence
+            if (mini && mini.storage) {
+              mini.storage.set('notificationDetails', notificationDetails)
+                .then(() => console.log('✅ Notification details saved'))
+                .catch(err => console.warn('Failed to save notification details:', err));
+            }
+            console.log('Notification details:', notificationDetails);
+          }
+        });
+
+        // Listen for miniAppRemoved event
+        sdk.on('miniAppRemoved', () => {
+          console.log('⚠️ Mini App removed');
+          // Invalidate notification tokens
+          notificationDetails = null;
           if (typeof window !== 'undefined') {
-            window.notificationDetails = notificationDetails;
+            window.notificationDetails = null;
           }
-          // Save to storage for persistence
           if (mini && mini.storage) {
-            mini.storage.set('notificationDetails', notificationDetails)
-              .then(() => console.log('✅ Notification details saved'))
-              .catch(err => console.warn('Failed to save notification details:', err));
+            mini.storage.remove('notificationDetails')
+              .then(() => console.log('✅ Notification details removed'))
+              .catch(err => console.warn('Failed to remove notification details:', err));
           }
-          console.log('Notification details:', notificationDetails);
-        }
-      });
+        });
 
-      // Listen for miniapp_removed event
-      sdk.events.on('miniapp_removed', (payload) => {
-        console.log('⚠️ Mini App removed:', payload);
-        // Invalidate notification tokens
-        notificationDetails = null;
-        if (typeof window !== 'undefined') {
-          window.notificationDetails = null;
-        }
-        if (mini && mini.storage) {
-          mini.storage.remove('notificationDetails')
-            .then(() => console.log('✅ Notification details removed'))
-            .catch(err => console.warn('Failed to remove notification details:', err));
-        }
-      });
+        // Listen for notificationsEnabled event
+        sdk.on('notificationsEnabled', (payload) => {
+          console.log('✅ Notifications enabled:', payload);
+          if (payload && payload.notificationDetails) {
+            notificationDetails = {
+              url: payload.notificationDetails.url,
+              token: payload.notificationDetails.token
+            };
+            // Update global reference
+            if (typeof window !== 'undefined') {
+              window.notificationDetails = notificationDetails;
+            }
+            // Save to storage
+            if (mini && mini.storage) {
+              mini.storage.set('notificationDetails', notificationDetails)
+                .then(() => console.log('✅ Notification details updated'))
+                .catch(err => console.warn('Failed to save notification details:', err));
+            }
+          }
+        });
 
-      // Listen for notifications_enabled event
-      sdk.events.on('notifications_enabled', (payload) => {
-        console.log('✅ Notifications enabled:', payload);
-        if (payload.notificationDetails) {
-          notificationDetails = {
-            url: payload.notificationDetails.url,
-            token: payload.notificationDetails.token
-          };
-          // Update global reference
+        // Listen for notificationsDisabled event
+        sdk.on('notificationsDisabled', () => {
+          console.log('⚠️ Notifications disabled');
+          // Invalidate notification tokens
+          notificationDetails = null;
           if (typeof window !== 'undefined') {
-            window.notificationDetails = notificationDetails;
+            window.notificationDetails = null;
           }
-          // Save to storage
           if (mini && mini.storage) {
-            mini.storage.set('notificationDetails', notificationDetails)
-              .then(() => console.log('✅ Notification details updated'))
-              .catch(err => console.warn('Failed to save notification details:', err));
+            mini.storage.remove('notificationDetails')
+              .then(() => console.log('✅ Notification details removed'))
+              .catch(err => console.warn('Failed to remove notification details:', err));
           }
-        }
-      });
+        });
 
-      // Listen for notifications_disabled event
-      sdk.events.on('notifications_disabled', (payload) => {
-        console.log('⚠️ Notifications disabled:', payload);
-        // Invalidate notification tokens
-        notificationDetails = null;
-        if (typeof window !== 'undefined') {
-          window.notificationDetails = null;
-        }
-        if (mini && mini.storage) {
-          mini.storage.remove('notificationDetails')
-            .then(() => console.log('✅ Notification details removed'))
-            .catch(err => console.warn('Failed to remove notification details:', err));
-        }
-      });
-
-      console.log('✅ SDK event listeners initialized');
+        console.log('✅ SDK event listeners initialized');
+      } else {
+        console.warn('SDK.on method not available');
+      }
     } else {
-      console.warn('SDK events not available');
+      console.warn('SDK not available');
     }
   } catch (error) {
     console.warn('Error initializing SDK events:', error);
