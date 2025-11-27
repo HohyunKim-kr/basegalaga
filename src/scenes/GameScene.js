@@ -33,6 +33,9 @@ export class GameScene extends Phaser.Scene {
     // 캐릭터 이미지 로드
     this.load.image('character', '/character.png');
 
+    // 총알 이미지 로드
+    this.load.image('bullet', '/bullet.png');
+
     // 몬스터 이미지 로드
     // 이미지 파일은 public/enemies/ 폴더에 넣어주세요
     // 예: public/enemies/enemy1.png, enemy2.png, enemy3.png, enemy4.png
@@ -729,13 +732,15 @@ export class GameScene extends Phaser.Scene {
 
     // Create bullets based on offsets
     bulletOffsets.forEach(offset => {
-      const bullet = this.add.rectangle(
+      const bullet = this.add.image(
         this.player.x + offset.x,
         this.player.y + offset.y,
-        bulletSize.width,
-        bulletSize.height,
-        currentWeapon.color
+        'bullet'
       );
+      // 총알 크기 조정
+      bullet.setDisplaySize(bulletSize.width, bulletSize.height);
+      // 무기 색상으로 tint 적용
+      bullet.setTint(currentWeapon.color);
       this.physics.add.existing(bullet);
       this.bullets.add(bullet);
       bullet.body.setVelocity(offset.vx || 0, offset.vy || -speed);
@@ -754,7 +759,9 @@ export class GameScene extends Phaser.Scene {
     // Vary bullet patterns based on stage
     if (stage <= 2) {
       // Early stages: simple straight or slightly aimed
-      const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
+      const bullet = this.add.image(enemy.x, enemy.y + 20, 'bullet');
+      bullet.setDisplaySize(5, 15);
+      bullet.setTint(bulletColor);
       this.physics.add.existing(bullet);
       this.enemyBullets.add(bullet);
 
@@ -773,7 +780,9 @@ export class GameScene extends Phaser.Scene {
       if (Math.random() < 0.2 && stage >= 4) {
         // 20% chance for spread shot (stage 4+)
         for (let i = 0; i < 3; i++) {
-          const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
+          const bullet = this.add.image(enemy.x, enemy.y + 20, 'bullet');
+          bullet.setDisplaySize(5, 15);
+          bullet.setTint(bulletColor);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
           const spread = (i - 1) * 0.3;
@@ -783,7 +792,9 @@ export class GameScene extends Phaser.Scene {
         }
       } else {
         // Aimed shot
-        const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
+        const bullet = this.add.image(enemy.x, enemy.y + 20, 'bullet');
+        bullet.setDisplaySize(5, 15);
+        bullet.setTint(bulletColor);
         this.physics.add.existing(bullet);
         this.enemyBullets.add(bullet);
         const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
@@ -796,7 +807,9 @@ export class GameScene extends Phaser.Scene {
       if (pattern < 0.3) {
         // 30% spread shot
         for (let i = 0; i < 3; i++) {
-          const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
+          const bullet = this.add.image(enemy.x, enemy.y + 20, 'bullet');
+          bullet.setDisplaySize(5, 15);
+          bullet.setTint(bulletColor);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
           const spread = (i - 1) * 0.4;
@@ -807,7 +820,9 @@ export class GameScene extends Phaser.Scene {
       } else if (pattern < 0.5 && stage >= 8) {
         // 20% chance for double shot (stage 8+)
         for (let i = 0; i < 2; i++) {
-          const bullet = this.add.rectangle(enemy.x + (i - 0.5) * 15, enemy.y + 20, 5, 15, bulletColor);
+          const bullet = this.add.image(enemy.x + (i - 0.5) * 15, enemy.y + 20, 'bullet');
+          bullet.setDisplaySize(5, 15);
+          bullet.setTint(bulletColor);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
           const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
@@ -816,7 +831,9 @@ export class GameScene extends Phaser.Scene {
         }
       } else {
         // Aimed shot with prediction
-        const bullet = this.add.rectangle(enemy.x, enemy.y + 20, 5, 15, bulletColor);
+        const bullet = this.add.image(enemy.x, enemy.y + 20, 'bullet');
+        bullet.setDisplaySize(5, 15);
+        bullet.setTint(bulletColor);
         this.physics.add.existing(bullet);
         this.enemyBullets.add(bullet);
         // Predict player movement (터치 컨트롤 기반)
@@ -843,7 +860,9 @@ export class GameScene extends Phaser.Scene {
     if (stage === 5) {
       // Stage 5 boss: 3-way spread
       for (let i = 0; i < 3; i++) {
-        const bullet = this.add.rectangle(this.boss.x, this.boss.y + 40, 8, 20, bossConfig.color);
+        const bullet = this.add.image(this.boss.x, this.boss.y + 40, 'bullet');
+        bullet.setDisplaySize(8, 20);
+        bullet.setTint(bossConfig.color);
         this.physics.add.existing(bullet);
         this.enemyBullets.add(bullet);
 
@@ -858,7 +877,9 @@ export class GameScene extends Phaser.Scene {
       if (pattern < 0.4) {
         // 5-way spread
         for (let i = 0; i < 5; i++) {
-          const bullet = this.add.rectangle(this.boss.x, this.boss.y + 40, 8, 20, bossConfig.color);
+          const bullet = this.add.image(this.boss.x, this.boss.y + 40, 'bullet');
+          bullet.setDisplaySize(8, 20);
+          bullet.setTint(bossConfig.color);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
           const angle = Phaser.Math.Angle.Between(this.boss.x, this.boss.y, this.player.x, this.player.y);
@@ -869,7 +890,9 @@ export class GameScene extends Phaser.Scene {
       } else if (pattern < 0.7) {
         // Circular pattern
         for (let i = 0; i < 8; i++) {
-          const bullet = this.add.rectangle(this.boss.x, this.boss.y + 40, 8, 20, bossConfig.color);
+          const bullet = this.add.image(this.boss.x, this.boss.y + 40, 'bullet');
+          bullet.setDisplaySize(8, 20);
+          bullet.setTint(bossConfig.color);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
           const angle = (Math.PI * 2 / 8) * i;
@@ -879,7 +902,9 @@ export class GameScene extends Phaser.Scene {
       } else {
         // Targeted burst
         for (let i = 0; i < 4; i++) {
-          const bullet = this.add.rectangle(this.boss.x, this.boss.y + 40, 8, 20, bossConfig.color);
+          const bullet = this.add.image(this.boss.x, this.boss.y + 40, 'bullet');
+          bullet.setDisplaySize(8, 20);
+          bullet.setTint(bossConfig.color);
           this.physics.add.existing(bullet);
           this.enemyBullets.add(bullet);
           const predictX = this.player.x + (this.touchControls?.left ? -80 : this.touchControls?.right ? 80 : 0);

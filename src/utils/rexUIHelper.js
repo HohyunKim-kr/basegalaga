@@ -93,7 +93,14 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
   if (button.buttons && button.buttons.length > 0) {
     button.buttons.forEach((btn, idx) => {
       if (btn && btn.setInteractive) {
-        btn.setInteractive({ useHandCursor: true });
+        // 더 큰 hitArea 설정 (모바일 터치 개선)
+        btn.setInteractive({ 
+          useHandCursor: true,
+          hitArea: new Phaser.Geom.Rectangle(-width/2, -height/2, width, height),
+          hitAreaCallback: Phaser.Geom.Rectangle.Contains
+        });
+        
+        // pointerdown 이벤트
         btn.on('pointerdown', (pointer) => {
           console.log('✅ Button pointerdown (direct):', text, 'scene:', scene.scene?.key, 'index:', idx);
           try {
@@ -113,7 +120,37 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
             }, 50);
           }
         });
+        
+        // pointerup 이벤트도 추가 (모바일에서 더 안정적)
+        btn.on('pointerup', (pointer) => {
+          console.log('✅ Button pointerup (direct):', text);
+          try {
+            if (pointer && pointer.event) {
+              pointer.event.preventDefault();
+              pointer.event.stopPropagation();
+            }
+          } catch (e) {}
+          
+          if (callback) {
+            setTimeout(() => {
+              try {
+                callback();
+              } catch (error) {
+                console.error('Button callback error:', error);
+              }
+            }, 50);
+          }
+        });
       }
+    });
+  }
+  
+  // 메인 버튼에도 interactive 설정
+  if (button.setInteractive) {
+    button.setInteractive({ 
+      useHandCursor: true,
+      hitArea: new Phaser.Geom.Rectangle(-width/2, -height/2, width, height),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains
     });
   }
 
@@ -167,8 +204,18 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
     const pos = getPos(event);
     if (!pos) return;
     
-    // 씬이 활성화되어 있는지 확인
-    if (!scene || !scene.scene || !scene.scene.isActive()) {
+    // 씬이 활성화되어 있는지 확인 (여러 방법으로 체크)
+    const sceneKey = scene?.scene?.key || scene?.sys?.settings?.key;
+    const activeScene = scene?.sys?.scene?.manager?.active;
+    const isSceneActive = scene?.scene?.isActive?.() || 
+                         (activeScene && (activeScene.key === sceneKey || !sceneKey));
+    
+    // GameOver, MainMenu, Leaderboard 같은 UI 씬은 항상 허용
+    const uiScenes = ['GameOver', 'MainMenu', 'Leaderboard', 'GameSummaryScene'];
+    const isUIScene = uiScenes.includes(sceneKey);
+    
+    if (!isSceneActive && !isUIScene && sceneKey) {
+      console.log('Scene not active, ignoring click:', sceneKey);
       return;
     }
     
@@ -182,7 +229,7 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
         }
       } catch (e) {}
 
-      console.log('✅ Button clicked:', text, 'at', pos, 'scene:', scene.scene?.key);
+      console.log('✅ Button clicked:', text, 'at', pos, 'scene:', sceneKey);
       
       // 버튼 클릭 애니메이션
       if (button && button.setScale) {
@@ -218,21 +265,29 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
       // 기존 리스너 제거 (중복 방지)
       if (typeof document !== 'undefined') {
         document.removeEventListener('touchstart', onTouch, { capture: true });
+        document.removeEventListener('touchend', onTouch, { capture: true });
         document.removeEventListener('mousedown', onTouch, { capture: true });
+        document.removeEventListener('click', onTouch, { capture: true });
       }
       canvas.removeEventListener('touchstart', onTouch, { capture: true });
+      canvas.removeEventListener('touchend', onTouch, { capture: true });
       canvas.removeEventListener('mousedown', onTouch, { capture: true });
+      canvas.removeEventListener('click', onTouch, { capture: true });
       
       // document 레벨에 먼저 등록 (최우선 처리)
       if (typeof document !== 'undefined') {
         document.addEventListener('touchstart', onTouch, { passive: false, capture: true });
+        document.addEventListener('touchend', onTouch, { passive: false, capture: true });
         document.addEventListener('mousedown', onTouch, { capture: true });
+        document.addEventListener('click', onTouch, { capture: true });
       }
       // canvas에도 등록 (백업)
       canvas.addEventListener('touchstart', onTouch, { passive: false, capture: true });
+      canvas.addEventListener('touchend', onTouch, { passive: false, capture: true });
       canvas.addEventListener('mousedown', onTouch, { capture: true });
+      canvas.addEventListener('click', onTouch, { capture: true });
       
-      console.log('✅ Button listeners added for:', text, 'bounds:', { x, y, width, height });
+      console.log('✅ Button listeners added for:', text, 'bounds:', { x, y, width, height }, 'scene:', scene?.scene?.key);
     } catch (error) {
       console.error('Error adding button listeners:', error);
     }
@@ -243,6 +298,11 @@ export function createRexButton(scene, x, y, width, height, text, callback, styl
   } else {
     setTimeout(setupListeners, 200);
   }
+  
+  // 추가: 버튼이 생성된 후에도 리스너 재등록 시도 (씬 전환 후 대응)
+  scene.events.once('wake', () => {
+    setTimeout(setupListeners, 100);
+  });
 
   // 클린업 함수
   const cleanup = () => {

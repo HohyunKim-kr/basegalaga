@@ -8,6 +8,7 @@ import {
   createGlassPanel
 } from '../utils/premiumStyle.js';
 import { createRexButton } from '../utils/rexUIHelper.js';
+import { createHolographicButton } from '../utils/premiumStyle.js';
 import { createUserHeader } from '../utils/userHeader.js';
 import { isMobile } from '../main.js';
 
@@ -44,12 +45,32 @@ export class GameOver extends Phaser.Scene {
     const { width, height } = this.cameras.main;
 
     // CRITICAL: Ensure input system is enabled for this scene
-    if (this.input) {
-      this.input.enabled = true;
-      if (this.input.mouse) this.input.mouse.enabled = true;
-      if (this.input.touch) this.input.touch.enabled = true;
+    // 씬 전환 후 입력 시스템이 제대로 활성화되도록 강제
+    this.input.enabled = true;
+    if (this.input.mouse) {
+      this.input.mouse.enabled = true;
+      this.input.mouse.disableContextMenu();
     }
-    console.log('GameOver scene - Input enabled:', this.input?.enabled);
+    if (this.input.touch) {
+      this.input.touch.enabled = true;
+    }
+    if (this.input.keyboard) {
+      this.input.keyboard.enabled = true;
+    }
+    
+    // 게임 레벨에서도 입력 활성화 확인
+    if (this.game.input) {
+      this.game.input.enabled = true;
+      if (this.game.input.touch) this.game.input.touch.enabled = true;
+      if (this.game.input.mouse) this.game.input.mouse.enabled = true;
+    }
+    
+    console.log('GameOver scene - Input enabled:', {
+      sceneInput: this.input?.enabled,
+      touch: this.input?.touch?.enabled,
+      mouse: this.input?.mouse?.enabled,
+      gameInput: this.game.input?.enabled
+    });
 
     // 1. Premium Background
     createPremiumBackground(this, width, height);
@@ -60,7 +81,7 @@ export class GameOver extends Phaser.Scene {
     // 3. Stats Panel
     this.createStatsPanel(width, height);
 
-    // 4. Action Buttons
+    // 4. Action Buttons (즉시 생성 - Phaser 기본 이벤트 사용)
     this.createButtons(width, height);
   }
 
@@ -171,15 +192,15 @@ export class GameOver extends Phaser.Scene {
   }
 
   createButtons(width, height) {
-    console.log('[GameOver] Creating buttons with RexUI...');
+    console.log('[GameOver] Creating buttons...');
 
     const startY = height * 0.65;
     const spacing = 70;
     const btnWidth = Math.min(width * 0.8, 320);
     const btnHeight = 60;
 
-    // Share (Broadcast Score)
-    const { button: shareBtn } = createRexButton(
+    // Share (Broadcast Score) - Phaser 기본 이벤트 사용
+    createHolographicButton(
       this,
       width / 2,
       startY,
@@ -191,10 +212,9 @@ export class GameOver extends Phaser.Scene {
         this.shareToFarcaster();
       }
     );
-    shareBtn.setDepth(10000);
 
-    // Leaderboard
-    const { button: leaderboardBtn } = createRexButton(
+    // Leaderboard - Phaser 기본 이벤트 사용
+    createHolographicButton(
       this,
       width / 2,
       startY + spacing,
@@ -206,10 +226,9 @@ export class GameOver extends Phaser.Scene {
         this.scene.start('Leaderboard');
       }
     );
-    leaderboardBtn.setDepth(10000);
 
-    // Menu
-    const { button: menuBtn } = createRexButton(
+    // Menu - Phaser 기본 이벤트 사용
+    createHolographicButton(
       this,
       width / 2,
       startY + spacing * 2,
@@ -221,9 +240,8 @@ export class GameOver extends Phaser.Scene {
         this.scene.start('MainMenu');
       }
     );
-    menuBtn.setDepth(10000);
 
-    console.log('[GameOver] All RexUI buttons created');
+    console.log('[GameOver] All buttons created');
   }
 
   async shareToFarcaster() {
@@ -246,14 +264,33 @@ export class GameOver extends Phaser.Scene {
       const inviteLink = '\n\n🎮 Play now: basegalaga.vercel.app';
       shareText += inviteLink;
 
+      console.log('Attempting to share:', shareText);
+
       // Use Farcaster SDK composeCast action
-      if (sdk && sdk.actions && sdk.actions.composeCast) {
-        await sdk.actions.composeCast({
-          text: shareText
-        });
+      if (typeof sdk !== 'undefined' && sdk && sdk.actions && sdk.actions.composeCast) {
+        try {
+          await sdk.actions.composeCast({
+            text: shareText,
+            embeds: ['https://basegalaga.vercel.app']
+          });
+          console.log('✅ Cast composed successfully');
+        } catch (castError) {
+          console.error('composeCast error:', castError);
+          // Fallback: embeds 없이 시도
+          try {
+            await sdk.actions.composeCast({
+              text: shareText
+            });
+            console.log('✅ Cast composed successfully (without embeds)');
+          } catch (fallbackError) {
+            console.error('composeCast fallback error:', fallbackError);
+            alert(`Share: ${shareText}`);
+          }
+        }
       } else {
         // Fallback for development/testing
         console.log('SDK composeCast not available, using fallback');
+        console.log('SDK state:', { sdk: typeof sdk, actions: sdk?.actions });
         alert(`Share: ${shareText}`);
       }
     } catch (error) {

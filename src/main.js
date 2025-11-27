@@ -134,6 +134,177 @@ if (typeof window !== 'undefined') {
   window.mini = mini;
 }
 
+// Notification details storage
+let notificationDetails = null;
+
+// Initialize SDK event listeners
+function initializeSDKEvents() {
+  try {
+    if (typeof sdk !== 'undefined' && sdk && sdk.events) {
+      // Listen for miniapp_added event
+      sdk.events.on('miniapp_added', (payload) => {
+        console.log('✅ Mini App added:', payload);
+        if (payload.notificationDetails) {
+          notificationDetails = {
+            url: payload.notificationDetails.url,
+            token: payload.notificationDetails.token
+          };
+          // Update global reference
+          if (typeof window !== 'undefined') {
+            window.notificationDetails = notificationDetails;
+          }
+          // Save to storage for persistence
+          if (mini && mini.storage) {
+            mini.storage.set('notificationDetails', notificationDetails)
+              .then(() => console.log('✅ Notification details saved'))
+              .catch(err => console.warn('Failed to save notification details:', err));
+          }
+          console.log('Notification details:', notificationDetails);
+        }
+      });
+
+      // Listen for miniapp_removed event
+      sdk.events.on('miniapp_removed', (payload) => {
+        console.log('⚠️ Mini App removed:', payload);
+        // Invalidate notification tokens
+        notificationDetails = null;
+        if (typeof window !== 'undefined') {
+          window.notificationDetails = null;
+        }
+        if (mini && mini.storage) {
+          mini.storage.remove('notificationDetails')
+            .then(() => console.log('✅ Notification details removed'))
+            .catch(err => console.warn('Failed to remove notification details:', err));
+        }
+      });
+
+      // Listen for notifications_enabled event
+      sdk.events.on('notifications_enabled', (payload) => {
+        console.log('✅ Notifications enabled:', payload);
+        if (payload.notificationDetails) {
+          notificationDetails = {
+            url: payload.notificationDetails.url,
+            token: payload.notificationDetails.token
+          };
+          // Update global reference
+          if (typeof window !== 'undefined') {
+            window.notificationDetails = notificationDetails;
+          }
+          // Save to storage
+          if (mini && mini.storage) {
+            mini.storage.set('notificationDetails', notificationDetails)
+              .then(() => console.log('✅ Notification details updated'))
+              .catch(err => console.warn('Failed to save notification details:', err));
+          }
+        }
+      });
+
+      // Listen for notifications_disabled event
+      sdk.events.on('notifications_disabled', (payload) => {
+        console.log('⚠️ Notifications disabled:', payload);
+        // Invalidate notification tokens
+        notificationDetails = null;
+        if (typeof window !== 'undefined') {
+          window.notificationDetails = null;
+        }
+        if (mini && mini.storage) {
+          mini.storage.remove('notificationDetails')
+            .then(() => console.log('✅ Notification details removed'))
+            .catch(err => console.warn('Failed to remove notification details:', err));
+        }
+      });
+
+      console.log('✅ SDK event listeners initialized');
+    } else {
+      console.warn('SDK events not available');
+    }
+  } catch (error) {
+    console.warn('Error initializing SDK events:', error);
+  }
+}
+
+// Load saved notification details on startup
+async function loadNotificationDetails() {
+  try {
+    if (mini && mini.storage) {
+      const saved = await mini.storage.get('notificationDetails');
+      if (saved && saved.url && saved.token) {
+        notificationDetails = saved;
+        // Update global reference
+        if (typeof window !== 'undefined') {
+          window.notificationDetails = notificationDetails;
+        }
+        console.log('✅ Loaded saved notification details');
+      }
+    }
+  } catch (error) {
+    console.warn('Error loading notification details:', error);
+  }
+}
+
+// Initialize events after SDK is ready
+async function setupSDKEvents() {
+  // Wait a bit for SDK to be fully initialized
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  if (typeof sdk !== 'undefined' && sdk) {
+    // Initialize event listeners
+    initializeSDKEvents();
+    
+    // Load saved notification details
+    await loadNotificationDetails();
+  }
+}
+
+// Setup events
+setupSDKEvents();
+
+// Expose notification details getter
+function getNotificationDetails() {
+  return notificationDetails;
+}
+
+// Send notification using stored details
+async function sendNotification(title, body, targetUrl = null) {
+  try {
+    if (!notificationDetails || !notificationDetails.url || !notificationDetails.token) {
+      console.warn('Notification details not available');
+      return false;
+    }
+
+    const response = await fetch(notificationDetails.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${notificationDetails.token}`
+      },
+      body: JSON.stringify({
+        title: title,
+        body: body,
+        targetUrl: targetUrl || window.location.origin
+      })
+    });
+
+    if (response.ok) {
+      console.log('✅ Notification sent successfully');
+      return true;
+    } else {
+      console.warn('Failed to send notification:', response.status, response.statusText);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error sending notification:', error);
+    return false;
+  }
+}
+
+// Expose globally
+if (typeof window !== 'undefined') {
+  window.getNotificationDetails = getNotificationDetails;
+  window.sendNotification = sendNotification;
+  window.notificationDetails = notificationDetails;
+}
+
 // Get Farcaster user information
 async function getFarcasterUser() {
   try {
@@ -239,5 +410,5 @@ setTimeout(async () => {
 }, 1000);
 
 // Export mini and isMobile for use in other modules
-export { mini, isMobile, getFarcasterUser };
+export { mini, isMobile, getFarcasterUser, getNotificationDetails, sendNotification };
 
