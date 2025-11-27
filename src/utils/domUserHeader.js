@@ -41,6 +41,17 @@ const headerStyles = `
     font-size: 14px;
     font-weight: bold;
     color: #00f2fe;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  
+  #user-header-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
   }
 
   #user-header-info {
@@ -172,11 +183,34 @@ async function loadUserData() {
             return;
         }
 
-        // Update avatar
+        // Update avatar with profile picture
         const avatar = document.getElementById('user-header-avatar');
         if (avatar) {
-            const initial = (user.displayName || user.username || 'U').charAt(0).toUpperCase();
-            avatar.textContent = initial;
+            if (user.pfpUrl && user.pfpUrl.trim() !== '') {
+                // Use profile picture if available
+                avatar.style.backgroundImage = `url(${user.pfpUrl})`;
+                avatar.style.backgroundSize = 'cover';
+                avatar.style.backgroundPosition = 'center';
+                avatar.textContent = ''; // Clear text if image is available
+                
+                // Add error handler in case image fails to load
+                const img = new Image();
+                img.onload = () => {
+                    avatar.style.backgroundImage = `url(${user.pfpUrl})`;
+                };
+                img.onerror = () => {
+                    // Fallback to initial if image fails
+                    const initial = (user.displayName || user.username || 'U').charAt(0).toUpperCase();
+                    avatar.style.backgroundImage = '';
+                    avatar.textContent = initial;
+                };
+                img.src = user.pfpUrl;
+            } else {
+                // Fallback to initial if no profile picture
+                const initial = (user.displayName || user.username || 'U').charAt(0).toUpperCase();
+                avatar.style.backgroundImage = '';
+                avatar.textContent = initial;
+            }
         }
 
         // Update name

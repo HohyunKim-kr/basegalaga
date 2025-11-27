@@ -414,6 +414,9 @@ setTimeout(async () => {
   }
 }, 1000);
 
+// Export navigation functions
+import { openUrl, composeCast, viewCast, openGroupMessage, openDirectMessage, launchMiniApp } from './utils/navigation.js';
+
 // Export mini and isMobile for use in other modules
-export { mini, isMobile, getFarcasterUser, getNotificationDetails, sendNotification };
+export { mini, isMobile, getFarcasterUser, getNotificationDetails, sendNotification, openUrl, composeCast, viewCast, openGroupMessage, openDirectMessage, launchMiniApp };
 

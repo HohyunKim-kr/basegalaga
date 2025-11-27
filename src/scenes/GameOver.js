@@ -11,6 +11,7 @@ import { createRexButton } from '../utils/rexUIHelper.js';
 import { createHolographicButton } from '../utils/premiumStyle.js';
 import { createUserHeader } from '../utils/userHeader.js';
 import { isMobile } from '../main.js';
+import { composeCast } from '../utils/navigation.js';
 
 export class GameOver extends Phaser.Scene {
   constructor() {
@@ -343,33 +344,8 @@ export class GameOver extends Phaser.Scene {
 
       console.log('Attempting to share:', shareText);
 
-      // Use Farcaster SDK composeCast action
-      if (typeof sdk !== 'undefined' && sdk && sdk.actions && sdk.actions.composeCast) {
-        try {
-          await sdk.actions.composeCast({
-            text: shareText,
-            embeds: ['https://basegalaga.vercel.app']
-          });
-          console.log('✅ Cast composed successfully');
-        } catch (castError) {
-          console.error('composeCast error:', castError);
-          // Fallback: embeds 없이 시도
-          try {
-            await sdk.actions.composeCast({
-              text: shareText
-            });
-            console.log('✅ Cast composed successfully (without embeds)');
-          } catch (fallbackError) {
-            console.error('composeCast fallback error:', fallbackError);
-            alert(`Share: ${shareText}`);
-          }
-        }
-      } else {
-        // Fallback for development/testing
-        console.log('SDK composeCast not available, using fallback');
-        console.log('SDK state:', { sdk: typeof sdk, actions: sdk?.actions });
-        alert(`Share: ${shareText}`);
-      }
+      // Use navigation utility function
+      await composeCast(shareText, ['https://basegalaga.vercel.app']);
     } catch (error) {
       console.error('Share error:', error);
       alert(`Error sharing score: ${error.message}`);
